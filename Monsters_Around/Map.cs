@@ -11,7 +11,6 @@ namespace Monsters_Around
 
         private Tile[,] _tiles;
 
-        // Текстуры для тайлов
         private Texture2D _floorTexture;
         private Texture2D _wallTexture;
 
@@ -37,14 +36,12 @@ namespace Monsters_Around
             {
                 for (int y = 0; y < Height; y++)
                 {
-                    // Создаем стены по краям, а внутри пол
                     if (x == 0 || x == Width - 1 || y == 0 || y == Height - 1)
                     {
                         _tiles[x, y] = new Tile(TileType.Wall);
                     }
                     else
                     {
-                        // Добавляем немного случайных стен внутри для теста коллизий
                         if (x % 5 == 0 && y % 5 == 0)
                         {
                             _tiles[x, y] = new Tile(TileType.Wall);
@@ -60,7 +57,6 @@ namespace Monsters_Around
 
         public bool IsWalkable(int x, int y)
         {
-            // Проверка на выход за границы карты
             if (x < 0 || x >= Width || y < 0 || y >= Height)
                 return false;
             

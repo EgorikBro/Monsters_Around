@@ -1,4 +1,3 @@
-# Build results
 [Bb]in/
 [Oo]bj/
 [Dd]ebug/
@@ -7,18 +6,15 @@ x64/
 x86/
 AnyCPU/
 
-# User-specific files
 *.user
 *.suo
 *.userosscache
 *.sln.docstates
 
-# MonoGame generated content
 Monsters_Around/Content/bin/
 Monsters_Around/Content/obj/
 *.mgstats
 
-# NuGet
 *.nupkg
 **/packages/*
 !**/packages/build/
@@ -28,7 +24,6 @@ project.lock.json
 project.fragment.lock.json
 artifacts/
 
-# .NET / IDE caches
 .vs/
 .vscode/
 .idea/
@@ -38,10 +33,8 @@ artifacts/
 *.opendb
 *.VC.db
 
-# OS files
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Logs
 *.log

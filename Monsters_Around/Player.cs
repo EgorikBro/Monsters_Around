@@ -6,7 +6,7 @@ namespace Monsters_Around
 {
     public class Player
     {
-        public Point Position { get; private set; } // Координаты в сетке карты
+        public Point Position { get; private set; }
         public Vector2 WorldPosition => _worldPosition;
 
         private Texture2D _texture;
@@ -43,7 +43,6 @@ namespace Monsters_Around
             int dx = 0;
             int dy = 0;
 
-            // Движение по WASD или стрелочкам (поддержка удержания клавиши)
             if (InputHandler.IsKeyDown(Keys.W) || InputHandler.IsKeyDown(Keys.Up)) dy = -1;
             else if (InputHandler.IsKeyDown(Keys.S) || InputHandler.IsKeyDown(Keys.Down)) dy = 1;
             else if (InputHandler.IsKeyDown(Keys.A) || InputHandler.IsKeyDown(Keys.Left)) dx = -1;
@@ -60,7 +59,6 @@ namespace Monsters_Around
             int newX = Position.X + dx;
             int newY = Position.Y + dy;
 
-            // Проверка коллизий перед перемещением
             if (_map.IsWalkable(newX, newY))
             {
                 _moveStartWorldPosition = _worldPosition;
