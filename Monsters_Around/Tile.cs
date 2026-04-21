@@ -3,7 +3,9 @@ namespace Monsters_Around
     public enum TileType
     {
         Floor,
-        Wall
+        Wall,
+        StairUp,
+        StairDown
     }
 
     public class Tile
@@ -15,6 +17,9 @@ namespace Monsters_Around
             Type = type;
         }
 
-        public bool IsWalkable => Type == TileType.Floor;
+        public bool IsWalkable =>
+            Type == TileType.Floor ||
+            Type == TileType.StairUp ||
+            Type == TileType.StairDown;
     }
 }

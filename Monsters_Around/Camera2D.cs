@@ -21,14 +21,14 @@ namespace Monsters_Around
 
         public void Follow(Vector2 targetWorldPosition, Viewport viewport, Point worldSize)
         {
-            float visibleWorldWidth = viewport.Width / _zoom;
-            float visibleWorldHeight = viewport.Height / _zoom;
+            var visibleWorldWidth = viewport.Width / _zoom;
+            var visibleWorldHeight = viewport.Height / _zoom;
 
-            float desiredX = targetWorldPosition.X - visibleWorldWidth * 0.5f;
-            float desiredY = targetWorldPosition.Y - visibleWorldHeight * 0.5f;
+            var desiredX = targetWorldPosition.X - visibleWorldWidth * 0.5f;
+            var desiredY = targetWorldPosition.Y - visibleWorldHeight * 0.5f;
 
-            float maxX = MathHelper.Max(0f, worldSize.X - visibleWorldWidth);
-            float maxY = MathHelper.Max(0f, worldSize.Y - visibleWorldHeight);
+            var maxX = MathHelper.Max(0f, worldSize.X - visibleWorldWidth);
+            var maxY = MathHelper.Max(0f, worldSize.Y - visibleWorldHeight);
 
             _position.X = MathHelper.Clamp(desiredX, 0f, maxX);
             _position.Y = MathHelper.Clamp(desiredY, 0f, maxY);

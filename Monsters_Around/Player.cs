@@ -8,9 +8,10 @@ namespace Monsters_Around
     {
         public Point Position { get; private set; }
         public Vector2 WorldPosition => _worldPosition;
+        public bool IsMoving => _isMoving;
 
         private Texture2D _texture;
-        private readonly Map _map;
+        private Map _map;
 
         private Vector2 _worldPosition;
         private Vector2 _moveStartWorldPosition;
@@ -37,11 +38,14 @@ namespace Monsters_Around
             if (_isMoving)
             {
                 UpdateMovementAnimation(gameTime);
-                return;
+                if (_isMoving)
+                {
+                    return;
+                }
             }
 
-            int dx = 0;
-            int dy = 0;
+            var dx = 0;
+            var dy = 0;
 
             if (InputHandler.IsKeyDown(Keys.W) || InputHandler.IsKeyDown(Keys.Up)) dy = -1;
             else if (InputHandler.IsKeyDown(Keys.S) || InputHandler.IsKeyDown(Keys.Down)) dy = 1;
@@ -56,8 +60,8 @@ namespace Monsters_Around
 
         private void TryStartMove(int dx, int dy)
         {
-            int newX = Position.X + dx;
-            int newY = Position.Y + dy;
+            var newX = Position.X + dx;
+            var newY = Position.Y + dy;
 
             if (_map.IsWalkable(newX, newY))
             {
@@ -72,7 +76,7 @@ namespace Monsters_Around
         private void UpdateMovementAnimation(GameTime gameTime)
         {
             _moveProgress += (float)(gameTime.ElapsedGameTime.TotalSeconds / MoveDurationSeconds);
-            float t = MathHelper.Clamp(_moveProgress, 0f, 1f);
+            var t = MathHelper.Clamp(_moveProgress, 0f, 1f);
             _worldPosition = Vector2.Lerp(_moveStartWorldPosition, _moveTargetWorldPosition, t);
 
             if (t >= 1f)
@@ -97,6 +101,17 @@ namespace Monsters_Around
                     Color.White
                 );
             }
+        }
+
+        public void SetMapAndPosition(Map map, Point position)
+        {
+            _map = map;
+            Position = position;
+            _worldPosition = GridToWorld(position);
+            _moveStartWorldPosition = _worldPosition;
+            _moveTargetWorldPosition = _worldPosition;
+            _moveProgress = 0f;
+            _isMoving = false;
         }
     }
 }
