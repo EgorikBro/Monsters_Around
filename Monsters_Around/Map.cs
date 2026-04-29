@@ -45,6 +45,8 @@ namespace Monsters_Around
         public Point StairUpPoint { get; private set; }
         public Point StairDownPoint { get; private set; }
         public int FloorIndex { get; }
+        public IReadOnlyList<Rectangle> Rooms => _rooms;
+        public int StartingRoomIndex => 0;
 
         public Map(int width, int height, int tileSize, int floorIndex, Random random)
         {

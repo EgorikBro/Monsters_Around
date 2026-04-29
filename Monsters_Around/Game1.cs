@@ -53,6 +53,39 @@ namespace Monsters_Around
 
         private Texture2D _dummyPlayerTex;
 
+        private readonly List<Enemy> _enemies = new List<Enemy>();
+        private readonly HashSet<Point> _enemyPositions = new HashSet<Point>();
+
+        private bool _justResolvedHeroBump;
+
+        private bool _isGameOver;
+        private int _gameOverSelectedIndex;
+
+        // While hero is counterattacked (after bump), block repeated inputs.
+        private bool _heroActionLocked;
+        private float _pendingEnemyCounterDelayRemaining;
+        private Enemy _pendingEnemyCounter;
+
+        private const int HeroMaxHealth = 100;
+        private int _heroHealth = HeroMaxHealth;
+
+        private const int EnemyMaxHealth = 30;
+        private const int SwordDamage = 5;
+        private const int EnemyDamage = 5;
+        private const float EnemyMissChance = 0.15f;
+        private const float HeroBlockChance = 0.25f;
+
+        private const float EnemyCounterDelaySeconds = 0.22f;
+
+        // Screen edge flash when hero is hit.
+        private float _edgeFlashStrength;
+        private const float EdgeCriticalStrength = 0.16f;
+        private const float EdgeFlashDurationSeconds = 0.35f;
+
+        // Over-head hero health bar (only visible while hero is taking damage).
+        private float _heroOverHeadHpBarTimer;
+        private const float HeroOverHeadHpBarDurationSeconds = 1.0f;
+
         public Game1()
         {
             _graphics = new GraphicsDeviceManager(this);
@@ -73,7 +106,10 @@ namespace Monsters_Around
         {
             _map = GetOrCreateFloor(0);
             _player = new Player(_map.PlayerSpawnPoint, _map);
+            _player.IsEnemyAt = IsEnemyAt;
+            _player.OnBumpRequested = HandleHeroBumpIntoEnemy;
             _map.UpdateExploration(_player.Position);
+            SpawnEnemiesForCurrentMap();
             _camera = new Camera2D(CameraZoom);
 
             base.Initialize();
@@ -119,6 +155,14 @@ namespace Monsters_Around
             var gamePadBackEdge = gamePadBackNow && !_gamePadBackHeld;
             _gamePadBackHeld = gamePadBackNow;
 
+            if (_isGameOver)
+            {
+                UpdateGameOverMenu(mouse);
+                _prevMouseState = mouse;
+                base.Update(gameTime);
+                return;
+            }
+
             if (_isPaused)
             {
                 UpdatePauseMenu(mouse);
@@ -148,8 +192,42 @@ namespace Monsters_Around
                 _showMapOverlay = !_showMapOverlay;
             }
 
-            _player.Update(gameTime);
-            HandleStairTransitions();
+            var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            if (_edgeFlashStrength > 0f)
+            {
+                _edgeFlashStrength = Math.Max(0f, _edgeFlashStrength - dt / EdgeFlashDurationSeconds);
+            }
+
+            if (_heroOverHeadHpBarTimer > 0f)
+            {
+                _heroOverHeadHpBarTimer = Math.Max(0f, _heroOverHeadHpBarTimer - dt);
+            }
+
+            if (_heroActionLocked)
+            {
+                UpdatePendingEnemyCounter(dt);
+            }
+            else
+            {
+                var heroPosBefore = _player.Position;
+                var mapBefore = _map;
+                _justResolvedHeroBump = false;
+
+                _player.Update(gameTime);
+
+                // If we bumped into an enemy, hero action is locked and stair transitions shouldn't happen mid-combat.
+                if (!_heroActionLocked)
+                {
+                    HandleStairTransitions();
+                }
+
+                if (!_heroActionLocked && _map == mapBefore && !_justResolvedHeroBump && _player.Position != heroPosBefore)
+                {
+                    ProcessEnemyTurn();
+                    HandleStairTransitions();
+                }
+            }
+
             _map.UpdateExploration(_player.Position);
             UpdateFpsCounter(gameTime);
             _camera.Follow(
@@ -283,7 +361,9 @@ namespace Monsters_Around
             );
 
             _map.Draw(_spriteBatch);
+            DrawEnemies();
             _player.Draw(_spriteBatch);
+            DrawHeroOverHeadHpBar();
 
             _spriteBatch.End();
 
@@ -298,11 +378,23 @@ namespace Monsters_Around
                 DrawFullMapOverlay();
             }
 
-            if (_isPaused)
+            if (_isGameOver)
             {
-                DrawPauseMenu();
+                DrawGameOverMenu();
             }
+            else
+            {
+                if (_isPaused)
+                {
+                    DrawPauseMenu();
+                }
 
+                DrawHeroHealthUi();
+                if (!_isPaused)
+                {
+                    DrawHeroDamageEdges();
+                }
+            }
             base.Draw(gameTime);
         }
 
@@ -409,6 +501,140 @@ namespace Monsters_Around
             {
                 _spriteBatch.End();
             }
+        }
+
+        private void DrawGameOverMenu()
+        {
+            if (_debugFont == null || _uiPixel == null)
+            {
+                return;
+            }
+
+            var vp = GraphicsDevice.Viewport;
+            var overlay = Color.Black * 0.65f;
+            var panelBg = new Color(22, 33, 62);
+            var panelBorder = new Color(233, 69, 96);
+            var accent = new Color(233, 69, 96);
+            var titleColor = new Color(238, 238, 238);
+
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            try
+            {
+                _spriteBatch.Draw(_uiPixel, new Rectangle(0, 0, vp.Width, vp.Height), overlay);
+
+                const int panelW = 520;
+                const int panelH = 220;
+                var panel = new Rectangle(
+                    (vp.Width - panelW) / 2,
+                    (vp.Height - panelH) / 2,
+                    panelW,
+                    panelH);
+
+                DrawPausePanelFrame(panel, panelBg, panelBorder);
+
+                DrawPauseTitle("ИГРА ОКОНЧЕНА", new Vector2(panel.X + 28, panel.Y + 28), accent, titleColor);
+
+                var mouse = Mouse.GetState();
+                const int btnW = 320;
+                const int btnH = 44;
+                const int gap = 10;
+                var btnLeft = panel.X + (panel.Width - btnW) / 2;
+                var btnTop = panel.Y + 120;
+
+                var labels = new[] { "Играть снова", "Выход" };
+
+                for (var i = 0; i < labels.Length; i++)
+                {
+                    var r = new Rectangle(btnLeft, btnTop + i * (btnH + gap), btnW, btnH);
+                    var selected = _gameOverSelectedIndex == i;
+                    var hover = r.Contains(mouse.X, mouse.Y);
+                    var fill = hover || selected ? new Color(26, 76, 130) : new Color(15, 52, 96);
+                    DrawPauseButton(r, fill, labels[i], false);
+                }
+            }
+            finally
+            {
+                _spriteBatch.End();
+            }
+        }
+
+        private void UpdateGameOverMenu(MouseState mouse)
+        {
+            const int btnW = 320;
+            const int btnH = 44;
+            const int gap = 10;
+            var vp = GraphicsDevice.Viewport;
+
+            const int panelW = 520;
+            const int panelH = 220;
+            var panelX = (vp.Width - panelW) / 2;
+            var panelY = (vp.Height - panelH) / 2;
+
+            var btnLeft = panelX + (panelW - btnW) / 2;
+            var btnTop = panelY + 120;
+
+            var labels = new[] { "Играть снова", "Выход" };
+
+            for (var i = 0; i < labels.Length; i++)
+            {
+                var r = new Rectangle(btnLeft, btnTop + i * (btnH + gap), btnW, btnH);
+                var hover = r.Contains(mouse.X, mouse.Y);
+
+                if (hover)
+                {
+                    _gameOverSelectedIndex = i;
+                }
+
+                var click = mouse.LeftButton == ButtonState.Released &&
+                             _prevMouseState.LeftButton == ButtonState.Pressed &&
+                             hover;
+                if (click || (InputHandler.IsKeyPressed(Keys.Enter) && _gameOverSelectedIndex == i))
+                {
+                    if (i == 0)
+                    {
+                        ResetGame();
+                        _isGameOver = false;
+                        return;
+                    }
+
+                    RequestVoluntaryExit();
+                    return;
+                }
+            }
+
+            if (InputHandler.IsKeyPressed(Keys.Down))
+            {
+                _gameOverSelectedIndex = (_gameOverSelectedIndex + 1) % labels.Length;
+            }
+            else if (InputHandler.IsKeyPressed(Keys.Up))
+            {
+                _gameOverSelectedIndex = (_gameOverSelectedIndex - 1 + labels.Length) % labels.Length;
+            }
+        }
+
+        private void ResetGame()
+        {
+            _heroHealth = HeroMaxHealth;
+            _heroActionLocked = false;
+            _pendingEnemyCounter = null;
+            _pendingEnemyCounterDelayRemaining = 0f;
+            _heroOverHeadHpBarTimer = 0f;
+            _edgeFlashStrength = 0f;
+            _stairTransitionLock = false;
+            _justResolvedHeroBump = false;
+            _gameOverSelectedIndex = 0;
+            _isPaused = false;
+            _pauseScreen = PauseScreen.Main;
+            IsMouseVisible = false;
+
+            _generatedFloors.Clear();
+            _currentFloorIndex = 0;
+            _map = GetOrCreateFloor(_currentFloorIndex);
+
+            _player.SetMapAndPosition(_map, _map.PlayerSpawnPoint);
+            _map.UpdateExploration(_player.Position);
+
+            SpawnEnemiesForCurrentMap();
         }
 
         protected override void UnloadContent()
@@ -833,6 +1059,563 @@ namespace Monsters_Around
             return map;
         }
 
+        private void SpawnEnemiesForCurrentMap()
+        {
+            _enemies.Clear();
+            _enemyPositions.Clear();
+
+            if (_map == null || _player == null)
+            {
+                return;
+            }
+
+            var rooms = _map.Rooms;
+            var startingRoomIndex = _map.StartingRoomIndex;
+
+            // Keep some tiles reserved so enemies don't instantly collide with the player/stairs.
+            var reserved = new HashSet<Point>
+            {
+                _map.PlayerSpawnPoint,
+                _map.StairUpPoint,
+                _map.StairDownPoint
+            };
+
+            for (var roomIndex = 0; roomIndex < rooms.Count; roomIndex++)
+            {
+                if (roomIndex == startingRoomIndex)
+                {
+                    continue;
+                }
+
+                var room = rooms[roomIndex];
+                var toSpawn = RollEnemyCount();
+                if (toSpawn <= 0)
+                {
+                    continue;
+                }
+
+                for (var i = 0; i < toSpawn; i++)
+                {
+                    const int maxAttempts = 60;
+                    var spawned = false;
+
+                    for (var attempt = 0; attempt < maxAttempts; attempt++)
+                    {
+                        // Rooms are carved to floors, so interior tiles are safe to try.
+                        var xMin = room.Left + 1;
+                        var xMaxExclusive = room.Right - 1;
+                        var yMin = room.Top + 1;
+                        var yMaxExclusive = room.Bottom - 1;
+
+                        if (xMaxExclusive <= xMin || yMaxExclusive <= yMin)
+                        {
+                            break;
+                        }
+
+                        var x = _random.Next(xMin, xMaxExclusive);
+                        var y = _random.Next(yMin, yMaxExclusive);
+                        var p = new Point(x, y);
+
+                        if (reserved.Contains(p) || !IsWalkableCell(p) || _enemyPositions.Contains(p))
+                        {
+                            continue;
+                        }
+
+                        // Enemies should not spawn directly next to each other.
+                        if (IsEnemyTooClose(p, 1))
+                        {
+                            continue;
+                        }
+
+                        _enemies.Add(new Enemy(p, EnemyMaxHealth, TileSize));
+                        _enemyPositions.Add(p);
+                        spawned = true;
+                        break;
+                    }
+
+                    if (!spawned)
+                    {
+                        // Can't find enough valid tiles in this room.
+                        break;
+                    }
+                }
+            }
+        }
+
+        private int RollEnemyCount()
+        {
+            // 4-5 are intentionally rarer than 0-3.
+            var r = _random.NextDouble();
+            if (r < 0.35) return 0;
+            if (r < 0.62) return 1;
+            if (r < 0.80) return 2;
+            if (r < 0.92) return 3;
+            if (r < 0.985) return 4;
+            return 5;
+        }
+
+        private bool IsEnemyAt(Point p) => _enemyPositions.Contains(p);
+
+        private bool IsEnemyTooClose(Point p, int minSeparation)
+        {
+            // minSeparation=1 => no existing enemy within 1 tile (including diagonals).
+            for (var i = 0; i < _enemies.Count; i++)
+            {
+                var e = _enemies[i];
+                if (e.IsDead)
+                {
+                    continue;
+                }
+
+                var dx = Math.Abs(e.Position.X - p.X);
+                var dy = Math.Abs(e.Position.Y - p.Y);
+                if (dx <= minSeparation && dy <= minSeparation)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private Enemy FindEnemyAt(Point p)
+        {
+            for (var i = 0; i < _enemies.Count; i++)
+            {
+                if (_enemies[i].Position == p)
+                {
+                    return _enemies[i];
+                }
+            }
+
+            return null;
+        }
+
+        // Grid line-of-sight: if any intermediate cell is a wall, target is not visible.
+        private bool HasLineOfSight(Point from, Point to)
+        {
+            if (from == to)
+            {
+                return true;
+            }
+
+            var x0 = from.X;
+            var y0 = from.Y;
+            var x1 = to.X;
+            var y1 = to.Y;
+
+            var dx = Math.Abs(x1 - x0);
+            var dy = Math.Abs(y1 - y0);
+            var sx = x0 < x1 ? 1 : -1;
+            var sy = y0 < y1 ? 1 : -1;
+            var err = dx - dy;
+
+            while (true)
+            {
+                if (x0 == x1 && y0 == y1)
+                {
+                    return true;
+                }
+
+                var e2 = 2 * err;
+                if (e2 > -dy)
+                {
+                    err -= dy;
+                    x0 += sx;
+                }
+
+                if (e2 < dx)
+                {
+                    err += dx;
+                    y0 += sy;
+                }
+
+                // Skip visibility check for the destination cell.
+                if (x0 == x1 && y0 == y1)
+                {
+                    return true;
+                }
+
+                var p = new Point(x0, y0);
+                if (!IsWalkableCell(p))
+                {
+                    return false;
+                }
+            }
+        }
+
+        private void HandleHeroBumpIntoEnemy(Point heroPos, Point enemyPos)
+        {
+            if (_heroActionLocked)
+            {
+                return;
+            }
+
+            _justResolvedHeroBump = true;
+            _heroActionLocked = true;
+            _pendingEnemyCounter = null;
+            _pendingEnemyCounterDelayRemaining = 0f;
+
+            if (_heroHealth <= 0)
+            {
+                return;
+            }
+
+            var enemy = FindEnemyAt(enemyPos);
+            if (enemy == null)
+            {
+                _heroActionLocked = false;
+                return;
+            }
+
+            // Hero sword always exists (no visuals yet).
+            enemy.TakeDamage(SwordDamage);
+            if (enemy.IsDead)
+            {
+                _enemies.Remove(enemy);
+                _enemyPositions.Remove(enemyPos);
+                _heroActionLocked = false;
+                return;
+            }
+
+            // Knock enemy one tile away from the hero (classic "bump" feel).
+            var dir = new Point(enemyPos.X - heroPos.X, enemyPos.Y - heroPos.Y);
+            var knockPos = new Point(enemyPos.X + dir.X, enemyPos.Y + dir.Y);
+            if (CanMoveEnemyTo(knockPos))
+            {
+                _enemyPositions.Remove(enemyPos);
+                enemy.MoveTo(knockPos);
+                _enemyPositions.Add(knockPos);
+            }
+
+            // Counterattack after hero's bump.
+            var dist = Math.Abs(enemy.Position.X - _player.Position.X) + Math.Abs(enemy.Position.Y - _player.Position.Y);
+            if (dist == 1)
+            {
+                _pendingEnemyCounter = enemy;
+                _pendingEnemyCounterDelayRemaining = EnemyCounterDelaySeconds;
+                // Hero can't act until counterattack resolves.
+                return;
+            }
+
+            _heroActionLocked = false;
+        }
+
+        private bool IsWalkableCell(Point p) => _map.IsWalkable(p.X, p.Y);
+
+        private bool CanMoveEnemyTo(Point p)
+        {
+            if (!IsWalkableCell(p))
+            {
+                return false;
+            }
+
+            if (p == _player.Position)
+            {
+                return false;
+            }
+
+            return !_enemyPositions.Contains(p);
+        }
+
+        private void EnemyAttackHero(Enemy enemy)
+        {
+            if (enemy == null || enemy.IsDead || _heroHealth <= 0)
+            {
+                return;
+            }
+
+            var heroPos = _player.Position;
+            var enemyPos = enemy.Position;
+            var dist = Math.Abs(heroPos.X - enemyPos.X) + Math.Abs(heroPos.Y - enemyPos.Y);
+            if (dist != 1)
+            {
+                return;
+            }
+
+            // "Bump" accuracy: miss or block.
+            if (_random.NextDouble() < EnemyMissChance)
+            {
+                return;
+            }
+
+            if (_random.NextDouble() < HeroBlockChance)
+            {
+                return;
+            }
+
+            _edgeFlashStrength = 1f;
+            _heroOverHeadHpBarTimer = HeroOverHeadHpBarDurationSeconds;
+            _heroHealth = Math.Max(0, _heroHealth - EnemyDamage);
+            if (_heroHealth <= 0)
+            {
+                _isGameOver = true;
+                IsMouseVisible = true;
+                return;
+            }
+
+            // Knock hero one tile away from the attacker.
+            var dir = new Point(heroPos.X - enemyPos.X, heroPos.Y - enemyPos.Y);
+            var knockPos = new Point(heroPos.X + dir.X, heroPos.Y + dir.Y);
+
+            if (IsWalkableCell(knockPos) && !_enemyPositions.Contains(knockPos))
+            {
+                _player.TeleportTo(knockPos);
+            }
+        }
+
+        private void UpdatePendingEnemyCounter(float dt)
+        {
+            if (_pendingEnemyCounterDelayRemaining > 0f)
+            {
+                _pendingEnemyCounterDelayRemaining = Math.Max(0f, _pendingEnemyCounterDelayRemaining - dt);
+            }
+
+            if (_pendingEnemyCounterDelayRemaining > 0f)
+            {
+                return;
+            }
+
+            var enemy = _pendingEnemyCounter;
+            _pendingEnemyCounter = null;
+            _pendingEnemyCounterDelayRemaining = 0f;
+
+            // If enemy died before the counter (should be rare), just unlock.
+            if (enemy == null || enemy.IsDead || _heroHealth <= 0)
+            {
+                _heroActionLocked = false;
+                return;
+            }
+
+            // Now perform the delayed monster hit.
+            EnemyAttackHero(enemy);
+
+            _heroActionLocked = false;
+            if (!_isGameOver)
+            {
+                HandleStairTransitions();
+            }
+        }
+
+        private void ProcessEnemyTurn()
+        {
+            if (_heroHealth <= 0)
+            {
+                return;
+            }
+
+            // Enemies act only once per hero move (turn-based).
+            for (var i = 0; i < _enemies.Count; i++)
+            {
+                var enemy = _enemies[i];
+                if (enemy.IsDead)
+                {
+                    continue;
+                }
+
+                var heroPos = _player.Position;
+                var enemyPos = enemy.Position;
+                var dist = Math.Abs(heroPos.X - enemyPos.X) + Math.Abs(heroPos.Y - enemyPos.Y);
+
+                if (dist == 1)
+                {
+                    EnemyAttackHero(enemy);
+                    if (_isGameOver)
+                    {
+                        return;
+                    }
+                    continue;
+                }
+
+                // Enemy moves only while hero is in line of sight (walls block).
+                if (!HasLineOfSight(enemyPos, heroPos))
+                {
+                    continue;
+                }
+
+                var next = ChooseEnemyMove(enemyPos, heroPos);
+                if (next.HasValue && next.Value != enemyPos)
+                {
+                    _enemyPositions.Remove(enemyPos);
+                    enemy.MoveTo(next.Value);
+                    _enemyPositions.Add(next.Value);
+                }
+
+                if (_isGameOver)
+                {
+                    return;
+                }
+            }
+        }
+
+        private Point? ChooseEnemyMove(Point enemyPos, Point heroPos)
+        {
+            var bestDist = int.MaxValue;
+            var candidates = new List<Point>();
+
+            TryDir(1, 0);
+            TryDir(-1, 0);
+            TryDir(0, 1);
+            TryDir(0, -1);
+
+            if (candidates.Count == 0)
+            {
+                return null;
+            }
+
+            return candidates[_random.Next(candidates.Count)];
+
+            void TryDir(int dx, int dy)
+            {
+                var p = new Point(enemyPos.X + dx, enemyPos.Y + dy);
+                if (p == heroPos)
+                {
+                    return;
+                }
+
+                if (!IsWalkableCell(p) || _enemyPositions.Contains(p))
+                {
+                    return;
+                }
+
+                var d = Math.Abs(p.X - heroPos.X) + Math.Abs(p.Y - heroPos.Y);
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    candidates.Clear();
+                    candidates.Add(p);
+                }
+                else if (d == bestDist)
+                {
+                    candidates.Add(p);
+                }
+            }
+        }
+
+        private void DrawEnemies()
+        {
+            if (_uiPixel == null)
+            {
+                return;
+            }
+
+            foreach (var enemy in _enemies)
+            {
+                if (enemy.IsDead)
+                {
+                    continue;
+                }
+
+                enemy.Draw(_spriteBatch, _uiPixel, Color.IndianRed, Color.OrangeRed);
+            }
+        }
+
+        private void DrawHeroHealthUi()
+        {
+            if (_uiPixel == null || _debugFont == null)
+            {
+                return;
+            }
+
+            var vp = GraphicsDevice.Viewport;
+            const int barH = 16;
+            const int padding = 12;
+            const int barW = 320;
+
+            var hpText = _heroHealth.ToString();
+            var textSize = _debugFont.MeasureString(hpText);
+            var y = vp.Height - barH - padding;
+            var barX = (vp.Width - barW) / 2;
+            var textX = barX - (int)textSize.X - 12;
+            if (textX < 0) textX = 0;
+            var textPos = new Vector2(textX, y - (textSize.Y - barH) * 0.5f);
+
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+
+            _spriteBatch.DrawString(_debugFont, hpText, textPos + Vector2.One, Color.Black * 0.35f);
+            _spriteBatch.DrawString(_debugFont, hpText, textPos, Color.White);
+
+            var ratio = HeroMaxHealth <= 0 ? 0f : (float)_heroHealth / HeroMaxHealth;
+            ratio = MathHelper.Clamp(ratio, 0f, 1f);
+            var fillW = (int)(barW * ratio);
+
+            _spriteBatch.Draw(_uiPixel, new Rectangle(barX, y, barW, barH), Color.Black * 0.5f);
+            if (fillW > 0)
+            {
+                _spriteBatch.Draw(_uiPixel, new Rectangle(barX, y, fillW, barH), Color.Red);
+            }
+
+            _spriteBatch.End();
+        }
+
+        private void DrawHeroDamageEdges()
+        {
+            if (_uiPixel == null)
+            {
+                return;
+            }
+
+            var intensity = Math.Max(_edgeFlashStrength, _heroHealth < 30 ? EdgeCriticalStrength : 0f);
+            if (intensity <= 0.001f)
+            {
+                return;
+            }
+
+            var vp = GraphicsDevice.Viewport;
+            const int thickness = 26;
+            var alpha = 0.12f + intensity * 0.7f;
+            var c = Color.Red * alpha;
+
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            _spriteBatch.Draw(_uiPixel, new Rectangle(0, 0, vp.Width, thickness), c);
+            _spriteBatch.Draw(_uiPixel, new Rectangle(0, vp.Height - thickness, vp.Width, thickness), c);
+            _spriteBatch.Draw(_uiPixel, new Rectangle(0, 0, thickness, vp.Height), c);
+            _spriteBatch.Draw(_uiPixel, new Rectangle(vp.Width - thickness, 0, thickness, vp.Height), c);
+            _spriteBatch.End();
+        }
+
+        private void DrawHeroOverHeadHpBar()
+        {
+            if (_uiPixel == null || _map == null)
+            {
+                return;
+            }
+
+            if (_heroOverHeadHpBarTimer <= 0f || _heroHealth <= 0)
+            {
+                return;
+            }
+
+            var ratio = HeroMaxHealth <= 0 ? 0f : (float)_heroHealth / HeroMaxHealth;
+            ratio = MathHelper.Clamp(ratio, 0f, 1f);
+
+            var alpha = _heroOverHeadHpBarTimer / HeroOverHeadHpBarDurationSeconds;
+            alpha = MathHelper.Clamp(alpha, 0f, 1f);
+
+            var barH = 4;
+            var tileSize = _map.TileSize;
+            var barW = tileSize;
+
+            var heroRect = new Rectangle(
+                (int)_player.WorldPosition.X,
+                (int)_player.WorldPosition.Y,
+                tileSize,
+                tileSize);
+
+            var topY = heroRect.Y - barH - 2;
+            var leftX = heroRect.X;
+            var fillW = (int)(barW * ratio);
+
+            var bgAlpha = 0.45f * alpha;
+            var fillAlpha = 0.95f * alpha;
+
+            _spriteBatch.Draw(_uiPixel, new Rectangle(leftX, topY, barW, barH), Color.Black * bgAlpha);
+            if (fillW > 0)
+            {
+                _spriteBatch.Draw(_uiPixel, new Rectangle(leftX, topY, fillW, barH), Color.Red * fillAlpha);
+            }
+        }
+
         private void HandleStairTransitions()
         {
             var currentTile = _map.GetTileType(_player.Position.X, _player.Position.Y);
@@ -867,6 +1650,7 @@ namespace Monsters_Around
             var spawnPoint = comingFromAbove ? _map.StairUpPoint : _map.StairDownPoint;
             _player.SetMapAndPosition(_map, spawnPoint);
             _map.UpdateExploration(_player.Position);
+            SpawnEnemiesForCurrentMap();
         }
     }
 }

@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using System;
 
 namespace Monsters_Around
 {
@@ -9,6 +10,11 @@ namespace Monsters_Around
         public Point Position { get; private set; }
         public Vector2 WorldPosition => _worldPosition;
         public bool IsMoving => _isMoving;
+        public Point LastMoveDirection => _lastMoveDirection;
+
+        // Used by Game1 to implement "bump" attacks into enemies.
+        public Func<Point, bool> IsEnemyAt { get; set; }
+        public Action<Point, Point> OnBumpRequested { get; set; }
 
         private Texture2D _texture;
         private Map _map;
@@ -18,6 +24,7 @@ namespace Monsters_Around
         private Vector2 _moveTargetWorldPosition;
         private bool _isMoving;
         private float _moveProgress;
+        private Point _lastMoveDirection;
 
         private const float MoveDurationSeconds = 0.12f;
 
@@ -62,6 +69,14 @@ namespace Monsters_Around
         {
             var newX = Position.X + dx;
             var newY = Position.Y + dy;
+            _lastMoveDirection = new Point(dx, dy);
+            var targetPos = new Point(newX, newY);
+
+            if (IsEnemyAt != null && IsEnemyAt(targetPos))
+            {
+                OnBumpRequested?.Invoke(Position, targetPos);
+                return;
+            }
 
             if (_map.IsWalkable(newX, newY))
             {
@@ -101,6 +116,16 @@ namespace Monsters_Around
                     Color.White
                 );
             }
+        }
+
+        public void TeleportTo(Point position)
+        {
+            Position = position;
+            _worldPosition = GridToWorld(position);
+            _moveStartWorldPosition = _worldPosition;
+            _moveTargetWorldPosition = _worldPosition;
+            _moveProgress = 0f;
+            _isMoving = false;
         }
 
         public void SetMapAndPosition(Map map, Point position)
