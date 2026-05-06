@@ -12,7 +12,6 @@ namespace Monsters_Around
         public bool IsMoving => _isMoving;
         public Point LastMoveDirection => _lastMoveDirection;
 
-        // Used by Game1 to implement "bump" attacks into enemies.
         public Func<Point, bool> IsEnemyAt { get; set; }
         public Action<Point, Point> OnBumpRequested { get; set; }
 
@@ -26,7 +25,7 @@ namespace Monsters_Around
         private float _moveProgress;
         private Point _lastMoveDirection;
 
-        private const float MoveDurationSeconds = 0.12f;
+        private const float MoveDurationSeconds = 0.16f;
 
         public Player(Point startPosition, Map map)
         {
@@ -106,13 +105,13 @@ namespace Monsters_Around
             return new Vector2(gridPosition.X * _map.TileSize, gridPosition.Y * _map.TileSize);
         }
 
-        public void Draw(SpriteBatch spriteBatch)
+        public void Draw(SpriteBatch spriteBatch, Vector2 drawOffset)
         {
             if (_texture != null)
             {
                 spriteBatch.Draw(
                     _texture,
-                    new Rectangle((int)_worldPosition.X, (int)_worldPosition.Y, _map.TileSize, _map.TileSize),
+                    new Rectangle((int)(_worldPosition.X + drawOffset.X), (int)(_worldPosition.Y + drawOffset.Y), _map.TileSize, _map.TileSize),
                     Color.White
                 );
             }

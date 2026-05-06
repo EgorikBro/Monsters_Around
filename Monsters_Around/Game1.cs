@@ -61,30 +61,93 @@ namespace Monsters_Around
         private bool _isGameOver;
         private int _gameOverSelectedIndex;
 
-        // While hero is counterattacked (after bump), block repeated inputs.
         private bool _heroActionLocked;
         private float _pendingEnemyCounterDelayRemaining;
         private Enemy _pendingEnemyCounter;
+        private bool _pendingEnemyActionPhase;
+        private bool _pendingEnemyActionAllowMovement;
+        private int _heroStepsSinceEnemyTurn;
+
+        private float _heroBumpAnimTimer;
+        private Vector2 _heroBumpAnimDirection;
+        private readonly Dictionary<Enemy, float> _enemyBumpAnimTimers = new Dictionary<Enemy, float>();
+        private readonly Dictionary<Enemy, Vector2> _enemyBumpAnimDirections = new Dictionary<Enemy, Vector2>();
+        private readonly List<DamagePopup> _damagePopups = new List<DamagePopup>();
+        private readonly List<CombatLogEntry> _combatLogEntries = new List<CombatLogEntry>();
+        private readonly List<CombatLogHistoryItem> _combatLogHistory = new List<CombatLogHistoryItem>();
 
         private const int HeroMaxHealth = 100;
         private int _heroHealth = HeroMaxHealth;
+        private const int HeroDefense = 5;
 
         private const int EnemyMaxHealth = 30;
-        private const int SwordDamage = 5;
-        private const int EnemyDamage = 5;
-        private const float EnemyMissChance = 0.15f;
-        private const float HeroBlockChance = 0.25f;
+        private const int EnemyDefense = 7;
+        private const int HeroDamageMin = 4;
+        private const int HeroDamageMax = 7;
+        private const int HeroCritDamage = 10;
+        private const float HeroCritChance = 0.16f;
+
+        private const int EnemyDamageMin = 2;
+        private const int EnemyDamageMax = 5;
+        private const int EnemyCritDamage = 8;
+        private const float EnemyCritChance = 0.14f;
+        private const float HeroMissChance = 0.05f;
+        private const float EnemyMissChance = 0.05f;
 
         private const float EnemyCounterDelaySeconds = 0.22f;
+        private const float EnemyActionDelaySeconds = 0.5f;
 
-        // Screen edge flash when hero is hit.
         private float _edgeFlashStrength;
         private const float EdgeCriticalStrength = 0.16f;
         private const float EdgeFlashDurationSeconds = 0.35f;
+        private const float BumpAnimDurationSeconds = 0.09f;
+        private const float BumpAnimAmplitudePx = 4f;
 
-        // Over-head hero health bar (only visible while hero is taking damage).
         private float _heroOverHeadHpBarTimer;
         private const float HeroOverHeadHpBarDurationSeconds = 1.0f;
+        private int _heroTurnsSinceRegen;
+        private const int CombatLogVisibleCount = 3;
+        private const int CombatLogExpandedVisibleCount = 7;
+        private const float CombatLogLineHeight = 28f;
+        private const float CombatLogTextScale = 1.2f;
+        private const float CombatLogFadeSpeed = 2.8f;
+        private const float CombatLogMoveSpeed = 16f;
+        private bool _isCombatLogExpanded;
+        private int _combatLogScrollOffset;
+        private bool _combatLogScrollbarDragging;
+        private float _combatLogScrollbarGrabOffset;
+        private int _lastScrollWheelValue;
+
+        private float _gameCursorAlpha;
+        private float _mouseIdleTime;
+        private Point _lastMousePosition;
+        private const float MouseCursorIdleBeforeFade = 0.5f;
+        private const float MouseCursorFadeSpeed = 2.2f;
+
+        private struct DamagePopup
+        {
+            public Vector2 WorldPosition;
+            public int Value;
+            public bool IsCrit;
+            public float TimeLeft;
+            public float Lifetime;
+        }
+
+        private class CombatLogEntry
+        {
+            public string Text;
+            public Color Color;
+            public float Y;
+            public float TargetY;
+            public float Alpha;
+            public bool IsExiting;
+        }
+
+        private struct CombatLogHistoryItem
+        {
+            public string Text;
+            public Color Color;
+        }
 
         public Game1()
         {
@@ -135,6 +198,8 @@ namespace Monsters_Around
 
             _player.LoadContent(_dummyPlayerTex);
             _prevMouseState = Mouse.GetState();
+            _lastScrollWheelValue = _prevMouseState.ScrollWheelValue;
+            _lastMousePosition = _prevMouseState.Position;
             _gamePadBackHeld = GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed;
         }
 
@@ -150,10 +215,28 @@ namespace Monsters_Around
             InputHandler.Update();
 
             var mouse = Mouse.GetState();
+            var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
             var gamePad = GamePad.GetState(PlayerIndex.One);
             var gamePadBackNow = gamePad.Buttons.Back == ButtonState.Pressed;
             var gamePadBackEdge = gamePadBackNow && !_gamePadBackHeld;
             _gamePadBackHeld = gamePadBackNow;
+
+            if (InputHandler.IsKeyPressed(Keys.T))
+            {
+                _isCombatLogExpanded = !_isCombatLogExpanded;
+                _combatLogScrollbarDragging = false;
+                ClampCombatLogScroll();
+                if (_isCombatLogExpanded)
+                {
+                    _combatLogScrollOffset = Math.Max(0, _combatLogHistory.Count - CombatLogExpandedVisibleCount);
+                }
+            }
+
+            if (!_isPaused && !_isGameOver)
+            {
+                UpdateGameplayCursor(mouse, dt);
+                UpdateCombatLogExpandedInput(mouse);
+            }
 
             if (_isGameOver)
             {
@@ -191,8 +274,6 @@ namespace Monsters_Around
             {
                 _showMapOverlay = !_showMapOverlay;
             }
-
-            var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
             if (_edgeFlashStrength > 0f)
             {
                 _edgeFlashStrength = Math.Max(0f, _edgeFlashStrength - dt / EdgeFlashDurationSeconds);
@@ -201,6 +282,13 @@ namespace Monsters_Around
             if (_heroOverHeadHpBarTimer > 0f)
             {
                 _heroOverHeadHpBarTimer = Math.Max(0f, _heroOverHeadHpBarTimer - dt);
+            }
+            UpdateDamagePopups(dt);
+            UpdateCombatLog(dt);
+
+            if (_heroBumpAnimTimer > 0f)
+            {
+                _heroBumpAnimTimer = Math.Max(0f, _heroBumpAnimTimer - dt);
             }
 
             if (_heroActionLocked)
@@ -213,9 +301,24 @@ namespace Monsters_Around
                 var mapBefore = _map;
                 _justResolvedHeroBump = false;
 
-                _player.Update(gameTime);
+                if (InputHandler.IsKeyPressed(Keys.Space) && !_player.IsMoving)
+                {
+                    AdvanceHeroTurnAndRegen();
+                    _heroStepsSinceEnemyTurn++;
+                    var allowMovement = _heroStepsSinceEnemyTurn >= 2;
+                    if (allowMovement)
+                    {
+                        _heroStepsSinceEnemyTurn = 0;
+                    }
 
-                // If we bumped into an enemy, hero action is locked and stair transitions shouldn't happen mid-combat.
+                    ProcessEnemyTurn(allowMovement);
+                    HandleStairTransitions();
+                }
+                else
+                {
+                    _player.Update(gameTime);
+                }
+
                 if (!_heroActionLocked)
                 {
                     HandleStairTransitions();
@@ -223,11 +326,20 @@ namespace Monsters_Around
 
                 if (!_heroActionLocked && _map == mapBefore && !_justResolvedHeroBump && _player.Position != heroPosBefore)
                 {
-                    ProcessEnemyTurn();
+                    AdvanceHeroTurnAndRegen();
+                    _heroStepsSinceEnemyTurn++;
+                    var allowMovement = _heroStepsSinceEnemyTurn >= 2;
+                    if (allowMovement)
+                    {
+                        _heroStepsSinceEnemyTurn = 0;
+                    }
+
+                    ProcessEnemyTurn(allowMovement);
                     HandleStairTransitions();
                 }
             }
 
+            UpdateEnemies(gameTime);
             _map.UpdateExploration(_player.Position);
             UpdateFpsCounter(gameTime);
             _camera.Follow(
@@ -362,8 +474,9 @@ namespace Monsters_Around
 
             _map.Draw(_spriteBatch);
             DrawEnemies();
-            _player.Draw(_spriteBatch);
+            _player.Draw(_spriteBatch, GetHeroBumpDrawOffset());
             DrawHeroOverHeadHpBar();
+            DrawDamagePopups();
 
             _spriteBatch.End();
 
@@ -373,6 +486,7 @@ namespace Monsters_Around
             }
 
             DrawMinimap();
+            DrawCombatLog();
             if (_showMapOverlay)
             {
                 DrawFullMapOverlay();
@@ -395,6 +509,8 @@ namespace Monsters_Around
                     DrawHeroDamageEdges();
                 }
             }
+
+            DrawGameplayCursor();
             base.Draw(gameTime);
         }
 
@@ -618,8 +734,18 @@ namespace Monsters_Around
             _heroActionLocked = false;
             _pendingEnemyCounter = null;
             _pendingEnemyCounterDelayRemaining = 0f;
+            _pendingEnemyActionPhase = false;
+            _pendingEnemyActionAllowMovement = false;
+            _heroStepsSinceEnemyTurn = 0;
+            _heroTurnsSinceRegen = 0;
             _heroOverHeadHpBarTimer = 0f;
             _edgeFlashStrength = 0f;
+            _heroBumpAnimTimer = 0f;
+            _heroBumpAnimDirection = Vector2.Zero;
+            _enemyBumpAnimTimers.Clear();
+            _enemyBumpAnimDirections.Clear();
+            _damagePopups.Clear();
+            _combatLogEntries.Clear();
             _stairTransitionLock = false;
             _justResolvedHeroBump = false;
             _gameOverSelectedIndex = 0;
@@ -654,6 +780,7 @@ namespace Monsters_Around
                 "Интерфейс\n" +
                 "  F1 - счётчик FPS\n" +
                 "  M - большая карта этажа\n" +
+                "  T - раскрыть историю событий\n" +
                 "  Мини-карта - всегда слева снизу\n\n" +
                 "Подземелье\n" +
                 "  Лестница вниз / вверх - переход между этажами\n\n" +
@@ -1063,6 +1190,11 @@ namespace Monsters_Around
         {
             _enemies.Clear();
             _enemyPositions.Clear();
+            _enemyBumpAnimTimers.Clear();
+            _enemyBumpAnimDirections.Clear();
+            _damagePopups.Clear();
+            _heroStepsSinceEnemyTurn = 0;
+            _heroTurnsSinceRegen = 0;
 
             if (_map == null || _player == null)
             {
@@ -1072,7 +1204,6 @@ namespace Monsters_Around
             var rooms = _map.Rooms;
             var startingRoomIndex = _map.StartingRoomIndex;
 
-            // Keep some tiles reserved so enemies don't instantly collide with the player/stairs.
             var reserved = new HashSet<Point>
             {
                 _map.PlayerSpawnPoint,
@@ -1101,7 +1232,6 @@ namespace Monsters_Around
 
                     for (var attempt = 0; attempt < maxAttempts; attempt++)
                     {
-                        // Rooms are carved to floors, so interior tiles are safe to try.
                         var xMin = room.Left + 1;
                         var xMaxExclusive = room.Right - 1;
                         var yMin = room.Top + 1;
@@ -1121,13 +1251,12 @@ namespace Monsters_Around
                             continue;
                         }
 
-                        // Enemies should not spawn directly next to each other.
                         if (IsEnemyTooClose(p, 1))
                         {
                             continue;
                         }
 
-                        _enemies.Add(new Enemy(p, EnemyMaxHealth, TileSize));
+                        _enemies.Add(new Enemy(p, EnemyMaxHealth, EnemyDefense, TileSize));
                         _enemyPositions.Add(p);
                         spawned = true;
                         break;
@@ -1135,7 +1264,6 @@ namespace Monsters_Around
 
                     if (!spawned)
                     {
-                        // Can't find enough valid tiles in this room.
                         break;
                     }
                 }
@@ -1144,7 +1272,6 @@ namespace Monsters_Around
 
         private int RollEnemyCount()
         {
-            // 4-5 are intentionally rarer than 0-3.
             var r = _random.NextDouble();
             if (r < 0.35) return 0;
             if (r < 0.62) return 1;
@@ -1158,7 +1285,6 @@ namespace Monsters_Around
 
         private bool IsEnemyTooClose(Point p, int minSeparation)
         {
-            // minSeparation=1 => no existing enemy within 1 tile (including diagonals).
             for (var i = 0; i < _enemies.Count; i++)
             {
                 var e = _enemies[i];
@@ -1191,7 +1317,7 @@ namespace Monsters_Around
             return null;
         }
 
-        // Grid line-of-sight: if any intermediate cell is a wall, target is not visible.
+        // Проверяем видимость по клеткам: стена между врагом и героем блокирует обзор.
         private bool HasLineOfSight(Point from, Point to)
         {
             if (from == to)
@@ -1230,7 +1356,6 @@ namespace Monsters_Around
                     y0 += sy;
                 }
 
-                // Skip visibility check for the destination cell.
                 if (x0 == x1 && y0 == y1)
                 {
                     return true;
@@ -1252,9 +1377,6 @@ namespace Monsters_Around
             }
 
             _justResolvedHeroBump = true;
-            _heroActionLocked = true;
-            _pendingEnemyCounter = null;
-            _pendingEnemyCounterDelayRemaining = 0f;
 
             if (_heroHealth <= 0)
             {
@@ -1264,41 +1386,39 @@ namespace Monsters_Around
             var enemy = FindEnemyAt(enemyPos);
             if (enemy == null)
             {
-                _heroActionLocked = false;
                 return;
             }
 
-            // Hero sword always exists (no visuals yet).
-            enemy.TakeDamage(SwordDamage);
+            AdvanceHeroTurnAndRegen();
+            _heroStepsSinceEnemyTurn++;
+
+            var bumpDirX = Math.Sign(enemyPos.X - heroPos.X);
+            var bumpDirY = Math.Sign(enemyPos.Y - heroPos.Y);
+            var bumpDir = new Vector2(bumpDirX, bumpDirY);
+            if (bumpDir != Vector2.Zero)
+            {
+                bumpDir.Normalize();
+                StartHeroBumpAnimation(bumpDir);
+                StartEnemyBumpAnimation(enemy, -bumpDir);
+            }
+
+            var allowMovement = _heroStepsSinceEnemyTurn >= 2;
+            if (allowMovement)
+            {
+                _heroStepsSinceEnemyTurn = 0;
+            }
+
+            ResolveDelayedHeroStrike(enemy);
             if (enemy.IsDead)
             {
-                _enemies.Remove(enemy);
-                _enemyPositions.Remove(enemyPos);
-                _heroActionLocked = false;
                 return;
             }
 
-            // Knock enemy one tile away from the hero (classic "bump" feel).
-            var dir = new Point(enemyPos.X - heroPos.X, enemyPos.Y - heroPos.Y);
-            var knockPos = new Point(enemyPos.X + dir.X, enemyPos.Y + dir.Y);
-            if (CanMoveEnemyTo(knockPos))
-            {
-                _enemyPositions.Remove(enemyPos);
-                enemy.MoveTo(knockPos);
-                _enemyPositions.Add(knockPos);
-            }
-
-            // Counterattack after hero's bump.
-            var dist = Math.Abs(enemy.Position.X - _player.Position.X) + Math.Abs(enemy.Position.Y - _player.Position.Y);
-            if (dist == 1)
-            {
-                _pendingEnemyCounter = enemy;
-                _pendingEnemyCounterDelayRemaining = EnemyCounterDelaySeconds;
-                // Hero can't act until counterattack resolves.
-                return;
-            }
-
-            _heroActionLocked = false;
+            _heroActionLocked = true;
+            _pendingEnemyCounter = enemy;
+            _pendingEnemyCounterDelayRemaining = EnemyActionDelaySeconds;
+            _pendingEnemyActionPhase = true;
+            _pendingEnemyActionAllowMovement = allowMovement;
         }
 
         private bool IsWalkableCell(Point p) => _map.IsWalkable(p.X, p.Y);
@@ -1333,78 +1453,121 @@ namespace Monsters_Around
                 return;
             }
 
-            // "Bump" accuracy: miss or block.
+            var enemyToHeroDir = new Vector2(heroPos.X - enemyPos.X, heroPos.Y - enemyPos.Y);
+            if (enemyToHeroDir != Vector2.Zero)
+            {
+                enemyToHeroDir.Normalize();
+                StartEnemyBumpAnimation(enemy, enemyToHeroDir);
+                StartHeroBumpAnimation(-enemyToHeroDir);
+            }
+
             if (_random.NextDouble() < EnemyMissChance)
             {
+                AddCombatLog("Монстр промахивается", new Color(200, 200, 200));
                 return;
             }
 
-            if (_random.NextDouble() < HeroBlockChance)
+            if (_random.NextDouble() < GetBlockChance(HeroDefense))
             {
+                AddCombatLog("Вы блокируете удар", new Color(170, 220, 255));
                 return;
             }
 
             _edgeFlashStrength = 1f;
             _heroOverHeadHpBarTimer = HeroOverHeadHpBarDurationSeconds;
-            _heroHealth = Math.Max(0, _heroHealth - EnemyDamage);
+            var enemyCrit = _random.NextDouble() < EnemyCritChance;
+            var enemyDamage = enemyCrit ? EnemyCritDamage : _random.Next(EnemyDamageMin, EnemyDamageMax + 1);
+            enemyDamage = ApplyDefenseReduction(enemyDamage, HeroDefense);
+            _heroHealth = Math.Max(0, _heroHealth - enemyDamage);
+            AddDamagePopup(_player.WorldPosition, enemyDamage, enemyCrit);
+            AddCombatLog(enemyCrit ? $"Крит по вам: {enemyDamage} ед. урона" : $"Вы получили {enemyDamage} ед. урона", new Color(255, 150, 150));
             if (_heroHealth <= 0)
             {
                 _isGameOver = true;
                 IsMouseVisible = true;
+                AddCombatLog("Вы погибли", Color.OrangeRed);
+                return;
+            }
+        }
+
+        private void ResolveDelayedHeroStrike(Enemy enemy)
+        {
+            if (enemy == null || enemy.IsDead || _heroHealth <= 0)
+            {
                 return;
             }
 
-            // Knock hero one tile away from the attacker.
-            var dir = new Point(heroPos.X - enemyPos.X, heroPos.Y - enemyPos.Y);
-            var knockPos = new Point(heroPos.X + dir.X, heroPos.Y + dir.Y);
-
-            if (IsWalkableCell(knockPos) && !_enemyPositions.Contains(knockPos))
+            var heroPos = _player.Position;
+            var enemyPos = enemy.Position;
+            var dist = Math.Abs(heroPos.X - enemyPos.X) + Math.Abs(heroPos.Y - enemyPos.Y);
+            if (dist != 1)
             {
-                _player.TeleportTo(knockPos);
+                return;
+            }
+
+            var heroCrit = _random.NextDouble() < HeroCritChance;
+            var heroDamage = heroCrit ? HeroCritDamage : _random.Next(HeroDamageMin, HeroDamageMax + 1);
+            if (_random.NextDouble() < HeroMissChance)
+            {
+                AddCombatLog("Вы промахнулись", new Color(200, 200, 200));
+                return;
+            }
+
+            if (_random.NextDouble() < GetBlockChance(enemy.Defense))
+            {
+                AddCombatLog("Монстр блокирует удар", new Color(170, 220, 255));
+                return;
+            }
+
+            heroDamage = ApplyDefenseReduction(heroDamage, enemy.Defense);
+
+            enemy.TakeDamage(heroDamage);
+            AddDamagePopup(enemy.WorldPosition, heroDamage, heroCrit);
+            AddCombatLog(heroCrit ? $"Крит! Вы нанесли {heroDamage} ед. урона" : $"Вы нанесли {heroDamage} ед. урона", new Color(255, 210, 120));
+
+            if (enemy.IsDead)
+            {
+                _enemies.Remove(enemy);
+                _enemyPositions.Remove(enemyPos);
+                _enemyBumpAnimTimers.Remove(enemy);
+                _enemyBumpAnimDirections.Remove(enemy);
+                AddCombatLog("Монстр убит", new Color(255, 130, 130));
             }
         }
 
         private void UpdatePendingEnemyCounter(float dt)
         {
-            if (_pendingEnemyCounterDelayRemaining > 0f)
-            {
-                _pendingEnemyCounterDelayRemaining = Math.Max(0f, _pendingEnemyCounterDelayRemaining - dt);
-            }
-
+            _pendingEnemyCounterDelayRemaining = Math.Max(0f, _pendingEnemyCounterDelayRemaining - dt);
             if (_pendingEnemyCounterDelayRemaining > 0f)
             {
                 return;
             }
 
-            var enemy = _pendingEnemyCounter;
-            _pendingEnemyCounter = null;
-            _pendingEnemyCounterDelayRemaining = 0f;
-
-            // If enemy died before the counter (should be rare), just unlock.
-            if (enemy == null || enemy.IsDead || _heroHealth <= 0)
+            if (_pendingEnemyActionPhase)
             {
+                _pendingEnemyActionPhase = false;
+                if (!_isGameOver)
+                {
+                    ProcessEnemyTurn(_pendingEnemyActionAllowMovement);
+                    HandleStairTransitions();
+                }
+
+                _pendingEnemyCounter = null;
                 _heroActionLocked = false;
                 return;
             }
 
-            // Now perform the delayed monster hit.
-            EnemyAttackHero(enemy);
-
+            _pendingEnemyCounter = null;
             _heroActionLocked = false;
-            if (!_isGameOver)
-            {
-                HandleStairTransitions();
-            }
         }
 
-        private void ProcessEnemyTurn()
+        private void ProcessEnemyTurn(bool allowMovement)
         {
             if (_heroHealth <= 0)
             {
                 return;
             }
 
-            // Enemies act only once per hero move (turn-based).
             for (var i = 0; i < _enemies.Count; i++)
             {
                 var enemy = _enemies[i];
@@ -1427,8 +1590,12 @@ namespace Monsters_Around
                     continue;
                 }
 
-                // Enemy moves only while hero is in line of sight (walls block).
                 if (!HasLineOfSight(enemyPos, heroPos))
+                {
+                    continue;
+                }
+
+                if (!allowMovement)
                 {
                     continue;
                 }
@@ -1506,7 +1673,465 @@ namespace Monsters_Around
                     continue;
                 }
 
-                enemy.Draw(_spriteBatch, _uiPixel, Color.IndianRed, Color.OrangeRed);
+                enemy.Draw(_spriteBatch, _uiPixel, Color.IndianRed, Color.OrangeRed, GetEnemyBumpDrawOffset(enemy));
+            }
+        }
+
+        private void UpdateEnemies(GameTime gameTime)
+        {
+            var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            var keysToClear = new List<Enemy>();
+            foreach (var kv in _enemyBumpAnimTimers)
+            {
+                var newTimer = Math.Max(0f, kv.Value - dt);
+                if (newTimer <= 0f || kv.Key == null || kv.Key.IsDead)
+                {
+                    keysToClear.Add(kv.Key);
+                }
+                else
+                {
+                    _enemyBumpAnimTimers[kv.Key] = newTimer;
+                }
+            }
+
+            foreach (var k in keysToClear)
+            {
+                _enemyBumpAnimTimers.Remove(k);
+                _enemyBumpAnimDirections.Remove(k);
+            }
+
+            foreach (var enemy in _enemies)
+            {
+                if (enemy.IsDead)
+                {
+                    continue;
+                }
+
+                enemy.Update(gameTime);
+            }
+        }
+
+        private void StartHeroBumpAnimation(Vector2 direction)
+        {
+            if (direction == Vector2.Zero)
+            {
+                return;
+            }
+
+            direction.Normalize();
+            _heroBumpAnimDirection = direction;
+            _heroBumpAnimTimer = BumpAnimDurationSeconds;
+        }
+
+        private void StartEnemyBumpAnimation(Enemy enemy, Vector2 direction)
+        {
+            if (enemy == null || direction == Vector2.Zero)
+            {
+                return;
+            }
+
+            direction.Normalize();
+            _enemyBumpAnimDirections[enemy] = direction;
+            _enemyBumpAnimTimers[enemy] = BumpAnimDurationSeconds;
+        }
+
+        private Vector2 GetHeroBumpDrawOffset()
+        {
+            if (_heroBumpAnimTimer <= 0f || _heroBumpAnimDirection == Vector2.Zero)
+            {
+                return Vector2.Zero;
+            }
+
+            var progress = 1f - (_heroBumpAnimTimer / BumpAnimDurationSeconds);
+            var amp = MathF.Sin(progress * MathF.PI) * BumpAnimAmplitudePx;
+            return _heroBumpAnimDirection * amp;
+        }
+
+        private Vector2 GetEnemyBumpDrawOffset(Enemy enemy)
+        {
+            if (enemy == null)
+            {
+                return Vector2.Zero;
+            }
+
+            if (!_enemyBumpAnimTimers.TryGetValue(enemy, out var timer) ||
+                !_enemyBumpAnimDirections.TryGetValue(enemy, out var dir) ||
+                timer <= 0f || dir == Vector2.Zero)
+            {
+                return Vector2.Zero;
+            }
+
+            var progress = 1f - (timer / BumpAnimDurationSeconds);
+            var amp = MathF.Sin(progress * MathF.PI) * BumpAnimAmplitudePx;
+            return dir * amp;
+        }
+
+        private void AddDamagePopup(Vector2 targetWorldPosition, int damage, bool isCrit)
+        {
+            _damagePopups.Add(new DamagePopup
+            {
+                WorldPosition = targetWorldPosition + new Vector2(_map.TileSize * 0.35f, -4f),
+                Value = damage,
+                IsCrit = isCrit,
+                Lifetime = 0.70f,
+                TimeLeft = 0.70f
+            });
+        }
+
+        private void AddCombatLog(string text, Color color)
+        {
+            _combatLogHistory.Add(new CombatLogHistoryItem { Text = text, Color = color });
+            if (_combatLogHistory.Count > 400)
+            {
+                _combatLogHistory.RemoveRange(0, 100);
+            }
+
+            var baseY = GetCombatLogBaseY();
+            for (var i = 0; i < _combatLogEntries.Count; i++)
+            {
+                var e = _combatLogEntries[i];
+                if (e.IsExiting)
+                {
+                    continue;
+                }
+
+                e.TargetY -= CombatLogLineHeight;
+                if (e.TargetY < baseY - (CombatLogVisibleCount - 1) * CombatLogLineHeight - 0.5f)
+                {
+                    e.IsExiting = true;
+                    e.TargetY = baseY - CombatLogVisibleCount * CombatLogLineHeight;
+                }
+            }
+
+            _combatLogEntries.Add(new CombatLogEntry
+            {
+                Text = text,
+                Color = color,
+                Y = baseY + 10f,
+                TargetY = baseY,
+                Alpha = 0f,
+                IsExiting = false
+            });
+
+            ClampCombatLogScroll();
+            _combatLogScrollOffset = Math.Max(0, _combatLogHistory.Count - CombatLogExpandedVisibleCount);
+        }
+
+        private void UpdateCombatLog(float dt)
+        {
+            for (var i = _combatLogEntries.Count - 1; i >= 0; i--)
+            {
+                var e = _combatLogEntries[i];
+                e.Y = MathHelper.Lerp(e.Y, e.TargetY, Math.Clamp(dt * CombatLogMoveSpeed, 0f, 1f));
+
+                if (e.IsExiting)
+                {
+                    e.Alpha = Math.Max(0f, e.Alpha - dt * CombatLogFadeSpeed);
+                    if (e.Alpha <= 0.001f)
+                    {
+                        _combatLogEntries.RemoveAt(i);
+                    }
+                }
+                else
+                {
+                    e.Alpha = Math.Min(1f, e.Alpha + dt * 6f);
+                }
+            }
+        }
+
+        private float GetCombatLogBaseY()
+        {
+            var diameter = 230f;
+            var padding = 16f;
+            return GraphicsDevice.Viewport.Height - diameter - padding - 42f;
+        }
+
+        private void DrawCombatLog()
+        {
+            if (_debugFont == null)
+            {
+                return;
+            }
+
+            if (_isCombatLogExpanded)
+            {
+                DrawExpandedCombatLog();
+                return;
+            }
+
+            if (_combatLogEntries.Count == 0)
+            {
+                return;
+            }
+
+            const float x = 16f;
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            for (var i = 0; i < _combatLogEntries.Count; i++)
+            {
+                var e = _combatLogEntries[i];
+                if (e.Alpha <= 0.001f)
+                {
+                    continue;
+                }
+
+                var pos = new Vector2(x, e.Y);
+                var c = e.Color * e.Alpha;
+                _spriteBatch.DrawString(_debugFont, e.Text, pos + Vector2.One, Color.Black * (0.45f * e.Alpha), 0f, Vector2.Zero, CombatLogTextScale, SpriteEffects.None, 0f);
+                _spriteBatch.DrawString(_debugFont, e.Text, pos, c, 0f, Vector2.Zero, CombatLogTextScale, SpriteEffects.None, 0f);
+            }
+            _spriteBatch.End();
+        }
+
+        private void UpdateCombatLogExpandedInput(MouseState mouse)
+        {
+            var moved = mouse.Position != _lastMousePosition;
+            if (_isCombatLogExpanded)
+            {
+                var wheelDelta = mouse.ScrollWheelValue - _lastScrollWheelValue;
+                if (wheelDelta != 0)
+                {
+                    _combatLogScrollOffset -= Math.Sign(wheelDelta);
+                    ClampCombatLogScroll();
+                }
+
+                var panel = GetExpandedCombatLogPanel();
+                var track = GetCombatLogScrollTrackRect(panel);
+                var thumb = GetCombatLogScrollbarThumbRect(panel, _combatLogHistory.Count, CombatLogExpandedVisibleCount);
+
+                var leftPressedNow = mouse.LeftButton == ButtonState.Pressed;
+                var leftPressedBefore = _prevMouseState.LeftButton == ButtonState.Pressed;
+                var leftPressedEdge = leftPressedNow && !leftPressedBefore;
+
+                if (leftPressedEdge && thumb.Contains(mouse.X, mouse.Y))
+                {
+                    _combatLogScrollbarDragging = true;
+                    _combatLogScrollbarGrabOffset = mouse.Y - thumb.Y;
+                }
+                else if (!leftPressedNow)
+                {
+                    _combatLogScrollbarDragging = false;
+                }
+
+                if (_combatLogScrollbarDragging && leftPressedNow)
+                {
+                    var maxOffset = Math.Max(0, _combatLogHistory.Count - CombatLogExpandedVisibleCount);
+                    if (maxOffset > 0)
+                    {
+                        var thumbH = thumb.Height;
+                        var minY = track.Y;
+                        var maxY = track.Bottom - thumbH;
+                        var newY = (int)Math.Clamp(mouse.Y - _combatLogScrollbarGrabOffset, minY, maxY);
+                        var t = (newY - minY) / (float)Math.Max(1, maxY - minY);
+                        _combatLogScrollOffset = (int)Math.Round(t * maxOffset);
+                        ClampCombatLogScroll();
+                    }
+                }
+            }
+            else
+            {
+                _combatLogScrollbarDragging = false;
+            }
+
+            if (moved)
+            {
+                _lastMousePosition = mouse.Position;
+            }
+
+            _lastScrollWheelValue = mouse.ScrollWheelValue;
+        }
+
+        private void UpdateGameplayCursor(MouseState mouse, float dt)
+        {
+            var moved = mouse.Position != _lastMousePosition;
+            if (moved)
+            {
+                _mouseIdleTime = 0f;
+                _gameCursorAlpha = 1f;
+                _lastMousePosition = mouse.Position;
+            }
+            else
+            {
+                _mouseIdleTime += dt;
+                if (_mouseIdleTime > MouseCursorIdleBeforeFade)
+                {
+                    _gameCursorAlpha = Math.Max(0f, _gameCursorAlpha - dt * MouseCursorFadeSpeed);
+                }
+            }
+
+            IsMouseVisible = false;
+        }
+
+        private void DrawGameplayCursor()
+        {
+            if (_uiPixel == null || _gameCursorAlpha <= 0.001f || _isPaused || _isGameOver)
+            {
+                return;
+            }
+
+            var p = _lastMousePosition;
+            var c = Color.White * _gameCursorAlpha;
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            _spriteBatch.Draw(_uiPixel, new Rectangle(p.X - 1, p.Y - 6, 2, 12), c);
+            _spriteBatch.Draw(_uiPixel, new Rectangle(p.X - 6, p.Y - 1, 12, 2), c);
+            _spriteBatch.End();
+        }
+
+        private void DrawExpandedCombatLog()
+        {
+            var panel = GetExpandedCombatLogPanel();
+            var content = GetExpandedCombatLogContentRect(panel);
+            var visibleCount = CombatLogExpandedVisibleCount;
+            var total = _combatLogHistory.Count;
+            var maxOffset = Math.Max(0, total - visibleCount);
+            var start = Math.Clamp(_combatLogScrollOffset, 0, maxOffset);
+            var endExclusive = Math.Min(total, start + visibleCount);
+
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            _spriteBatch.Draw(_uiPixel, panel, Color.Black * 0.5f);
+            _spriteBatch.Draw(_uiPixel, new Rectangle(panel.X, panel.Y, panel.Width, 2), Color.White * 0.2f);
+            _spriteBatch.Draw(_uiPixel, new Rectangle(panel.X, panel.Bottom - 2, panel.Width, 2), Color.White * 0.2f);
+
+            for (var i = start; i < endExclusive; i++)
+            {
+                var row = i - start;
+                var y = content.Y + row * CombatLogLineHeight;
+                var item = _combatLogHistory[i];
+                var pos = new Vector2(content.X, y);
+                _spriteBatch.DrawString(_debugFont, item.Text, pos + Vector2.One, Color.Black * 0.45f, 0f, Vector2.Zero, CombatLogTextScale, SpriteEffects.None, 0f);
+                _spriteBatch.DrawString(_debugFont, item.Text, pos, item.Color, 0f, Vector2.Zero, CombatLogTextScale, SpriteEffects.None, 0f);
+            }
+
+            DrawCombatLogScrollbar(panel, total, visibleCount);
+            _spriteBatch.End();
+        }
+
+        private void DrawCombatLogScrollbar(Rectangle panel, int total, int visibleCount)
+        {
+            var track = GetCombatLogScrollTrackRect(panel);
+            _spriteBatch.Draw(_uiPixel, track, Color.Black * 0.45f);
+            if (total <= 0)
+            {
+                return;
+            }
+
+            var thumb = GetCombatLogScrollbarThumbRect(panel, total, visibleCount);
+            _spriteBatch.Draw(_uiPixel, thumb, Color.White * 0.55f);
+        }
+
+        private Rectangle GetExpandedCombatLogPanel()
+        {
+            var x = 8;
+            var y = (int)(GetCombatLogBaseY() - 180f);
+            var h = (int)(CombatLogExpandedVisibleCount * CombatLogLineHeight + 16f);
+            var w = 500;
+            return new Rectangle(x, y, w, h);
+        }
+
+        private Rectangle GetExpandedCombatLogContentRect(Rectangle panel)
+        {
+            return new Rectangle(panel.X + 8, panel.Y + 8, panel.Width - 30, panel.Height - 16);
+        }
+
+        private Rectangle GetCombatLogScrollTrackRect(Rectangle panel)
+        {
+            return new Rectangle(panel.Right - 14, panel.Y + 8, 8, panel.Height - 16);
+        }
+
+        private Rectangle GetCombatLogScrollbarThumbRect(Rectangle panel, int total, int visibleCount)
+        {
+            var track = GetCombatLogScrollTrackRect(panel);
+            if (total <= 0)
+            {
+                return track;
+            }
+
+            var maxOffset = Math.Max(0, total - visibleCount);
+            var thumbH = Math.Max(14, (int)Math.Round(track.Height * (visibleCount / (float)Math.Max(visibleCount, total))));
+            if (maxOffset == 0)
+            {
+                return new Rectangle(track.X, track.Y, track.Width, thumbH);
+            }
+
+            var t = _combatLogScrollOffset / (float)maxOffset;
+            var y = track.Y + (int)Math.Round((track.Height - thumbH) * t);
+            return new Rectangle(track.X, y, track.Width, thumbH);
+        }
+
+        private void ClampCombatLogScroll()
+        {
+            var maxOffset = Math.Max(0, _combatLogHistory.Count - CombatLogExpandedVisibleCount);
+            _combatLogScrollOffset = Math.Clamp(_combatLogScrollOffset, 0, maxOffset);
+        }
+
+        private static float GetBlockChance(int defense)
+        {
+            var clamped = Math.Clamp(defense, 0, 100);
+            return clamped / 100f;
+        }
+
+        private static int ApplyDefenseReduction(int rawDamage, int defense)
+        {
+            if (rawDamage <= 0)
+            {
+                return 0;
+            }
+
+            var reduction = (int)Math.Ceiling(rawDamage * (Math.Clamp(defense, 0, 100) / 100f));
+            var reduced = rawDamage - reduction;
+            return Math.Max(1, reduced);
+        }
+
+        private void AdvanceHeroTurnAndRegen()
+        {
+            _heroTurnsSinceRegen++;
+            if (_heroTurnsSinceRegen < 3)
+            {
+                return;
+            }
+
+            _heroTurnsSinceRegen = 0;
+            if (_heroHealth > 0 && _heroHealth < HeroMaxHealth)
+            {
+                _heroHealth = Math.Min(HeroMaxHealth, _heroHealth + 1);
+            }
+        }
+
+        private void UpdateDamagePopups(float dt)
+        {
+            for (var i = _damagePopups.Count - 1; i >= 0; i--)
+            {
+                var p = _damagePopups[i];
+                p.TimeLeft -= dt;
+                p.WorldPosition.Y -= (p.IsCrit ? 34f : 26f) * dt;
+
+                if (p.TimeLeft <= 0f)
+                {
+                    _damagePopups.RemoveAt(i);
+                    continue;
+                }
+
+                _damagePopups[i] = p;
+            }
+        }
+
+        private void DrawDamagePopups()
+        {
+            if (_debugFont == null || _damagePopups.Count == 0)
+            {
+                return;
+            }
+
+            for (var i = 0; i < _damagePopups.Count; i++)
+            {
+                var p = _damagePopups[i];
+                var alpha = MathHelper.Clamp(p.TimeLeft / p.Lifetime, 0f, 1f);
+                var text = p.Value.ToString();
+                var color = p.IsCrit ? Color.Gold : new Color(255, 110, 110);
+                var scale = p.IsCrit ? 1.05f : 0.95f;
+                var pos = p.WorldPosition;
+
+                _spriteBatch.DrawString(_debugFont, text, pos + Vector2.One, Color.Black * (0.45f * alpha), 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+                _spriteBatch.DrawString(_debugFont, text, pos, color * alpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             }
         }
 
@@ -1651,6 +2276,10 @@ namespace Monsters_Around
             _player.SetMapAndPosition(_map, spawnPoint);
             _map.UpdateExploration(_player.Position);
             SpawnEnemiesForCurrentMap();
+            var floorNumber = _currentFloorIndex + 1;
+            AddCombatLog(
+                comingFromAbove ? $"Спуск на этаж {floorNumber}" : $"Подъем на этаж {floorNumber}",
+                new Color(170, 205, 255));
         }
     }
 }

@@ -376,7 +376,7 @@ namespace Monsters_Around
                 return selected;
             }
 
-            // Keep 10-15% of non-MST edges to add useful loops.
+            // Добавляем немного лишних связей, чтобы карта была не слишком прямой.
             var percent = _random.Next(10, 16);
             var count = (int)Math.Round(rejectedEdges.Count * (percent / 100f));
             var clampedCount = Math.Clamp(count, 1, rejectedEdges.Count);
@@ -511,7 +511,7 @@ namespace Monsters_Around
 
         private void SetTileType(int x, int y, TileType type)
         {
-            // Perimeter always stays solid to prevent out-of-bounds gameplay movement.
+            // Край карты всегда стена, чтобы персонаж не уходил за границы.
             if (x <= 0 || x >= Width - 1 || y <= 0 || y >= Height - 1)
             {
                 return;
