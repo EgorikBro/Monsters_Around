@@ -134,6 +134,8 @@ namespace Monsters_Around
             {
                 for (var y = 0; y < Height; y++)
                 {
+                    if (!_explored[x, y]) continue;
+
                     var type = _tiles[x, y].Type;
                     var sourceRect = type == TileType.Wall ? _wallSourceRect : _floorSourceRect;
                     var destRect = new Rectangle(x * TileSize, y * TileSize, TileSize, TileSize);
@@ -540,11 +542,12 @@ namespace Monsters_Around
 
         private void RevealRoom(Rectangle room)
         {
-            for (var x = room.Left; x < room.Right; x++)
+            for (var x = room.Left - 1; x <= room.Right; x++)
             {
-                for (var y = room.Top; y < room.Bottom; y++)
+                for (var y = room.Top - 1; y <= room.Bottom; y++)
                 {
-                    _explored[x, y] = true;
+                    if (x >= 0 && x < Width && y >= 0 && y < Height)
+                        _explored[x, y] = true;
                 }
             }
         }

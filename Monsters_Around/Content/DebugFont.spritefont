@@ -1,29 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
 <XnaContent xmlns:Graphics="Microsoft.Xna.Framework.Content.Pipeline.Graphics">
   <Asset Type="Graphics:FontDescription">
-    <FontName>Arial</FontName>
+    <FontName>Segoe UI</FontName>
     <Size>16</Size>
     <Spacing>0</Spacing>
     <UseKerning>true</UseKerning>
     <Style>Regular</Style>
     <CharacterRegions>
+      <!-- ASCII печатаемые символы -->
       <CharacterRegion>
         <Start>&#32;</Start>
         <End>&#126;</End>
       </CharacterRegion>
-      <!-- Cyrillic (Russian): А-Я, а-я -->
+      <!-- Кириллица А-Я, а-я -->
       <CharacterRegion>
         <Start>&#x0410;</Start>
         <End>&#x044F;</End>
       </CharacterRegion>
-      <!-- Ё, ё -->
+      <!-- Ё -->
       <CharacterRegion>
         <Start>&#x0401;</Start>
         <End>&#x0401;</End>
       </CharacterRegion>
+      <!-- ё -->
       <CharacterRegion>
         <Start>&#x0451;</Start>
         <End>&#x0451;</End>
+      </CharacterRegion>
+      <!-- Стрелки ←↑→↓ -->
+      <CharacterRegion>
+        <Start>&#x2190;</Start>
+        <End>&#x2193;</End>
+      </CharacterRegion>
+      <!-- Сердце ♥ -->
+      <CharacterRegion>
+        <Start>&#x2665;</Start>
+        <End>&#x2665;</End>
       </CharacterRegion>
     </CharacterRegions>
   </Asset>

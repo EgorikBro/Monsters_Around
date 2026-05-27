@@ -10,14 +10,12 @@ namespace Monsters_Around
 {
     public class Game1 : Game
     {
-        // ── Infrastructure ──────────────────────────────────────────────────────
         private GraphicsDeviceManager _graphics;
         private SpriteBatch _spriteBatch;
         private Texture2D _tilesetTexture;
         private SpriteFont _debugFont;
         private Texture2D _uiPixel;
 
-        // ── Core game objects ────────────────────────────────────────────────────
         private Map _map;
         private Player _player;
         private Camera2D _camera;
@@ -29,18 +27,18 @@ namespace Monsters_Around
         private int _windowedHeight = GameConstants.WindowHeight;
         private bool _isApplyingDisplayChange;
 
-        // ── MVC ──────────────────────────────────────────────────────────────────
         private GameState _state;
         private CombatLog _log;
         private CombatController _combat;
         private EnemyController _enemies;
         private FloorController _floors;
 
-        // ── Views ────────────────────────────────────────────────────────────────
         private HudView _hudView;
         private MinimapView _minimapView;
         private CombatLogView _combatLogView;
         private MenuView _menuView;
+        private LevelUpView _levelUpView;
+        private CharacterView _characterView;
 
         public Game1()
         {
@@ -66,8 +64,8 @@ namespace Monsters_Around
 
             _map    = _floors.GetOrCreate(0, null);
             _player = new Player(_map.PlayerSpawnPoint, _map);
-            _player.IsEnemyAt        = p => _enemies.IsEnemyAt(p);
-            _player.OnBumpRequested  = HandleHeroBumpIntoEnemy;
+            _player.IsEnemyAt       = p => _enemies.IsEnemyAt(p);
+            _player.OnBumpRequested = HandleHeroBumpIntoEnemy;
             _map.UpdateExploration(_player.Position);
             _enemies.SpawnEnemies(_map, _player, _state);
             _camera = new Camera2D(GameConstants.CameraZoom);
@@ -79,23 +77,25 @@ namespace Monsters_Around
 
         protected override void LoadContent()
         {
-            _spriteBatch = new SpriteBatch(GraphicsDevice);
+            _spriteBatch    = new SpriteBatch(GraphicsDevice);
             _tilesetTexture = Content.Load<Texture2D>("Dungeon tileset");
-            _debugFont = Content.Load<SpriteFont>("DebugFont");
+            _debugFont      = Content.Load<SpriteFont>("DebugFont");
 
             _uiPixel = new Texture2D(GraphicsDevice, 1, 1);
             _uiPixel.SetData(new[] { Color.White });
 
             var playerTex = new Texture2D(GraphicsDevice, 1, 1);
-            playerTex.SetData(new[] { Color.Green });
+            playerTex.SetData(new[] { new Color(50, 120, 220) });
 
             _floors.LoadAllContent(_tilesetTexture);
             _player.LoadContent(playerTex);
 
-            _hudView      = new HudView(_spriteBatch, _debugFont, _uiPixel, GraphicsDevice);
-            _minimapView  = new MinimapView(_spriteBatch, _uiPixel, GraphicsDevice);
+            _hudView       = new HudView(_spriteBatch, _debugFont, _uiPixel, GraphicsDevice);
+            _minimapView   = new MinimapView(_spriteBatch, _uiPixel, GraphicsDevice);
             _combatLogView = new CombatLogView(_spriteBatch, _debugFont, _uiPixel, GraphicsDevice);
-            _menuView     = new MenuView(_spriteBatch, _debugFont, _uiPixel, GraphicsDevice);
+            _menuView      = new MenuView(_spriteBatch, _debugFont, _uiPixel, GraphicsDevice);
+            _levelUpView   = new LevelUpView(_spriteBatch, _debugFont, _uiPixel, GraphicsDevice);
+            _characterView = new CharacterView(_spriteBatch, _debugFont, _uiPixel, GraphicsDevice);
 
             _prevMouseState = Mouse.GetState();
             _lastScrollWheelValue = _prevMouseState.ScrollWheelValue;
@@ -116,9 +116,9 @@ namespace Monsters_Around
             var mouse = Mouse.GetState();
             var dt    = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-            var gamePad     = GamePad.GetState(PlayerIndex.One);
-            var backNow     = gamePad.Buttons.Back == ButtonState.Pressed;
-            var backEdge    = backNow && !_gamePadBackHeld;
+            var gamePad      = GamePad.GetState(PlayerIndex.One);
+            var backNow      = gamePad.Buttons.Back == ButtonState.Pressed;
+            var backEdge     = backNow && !_gamePadBackHeld;
             _gamePadBackHeld = backNow;
 
             if (InputHandler.IsKeyPressed(Keys.T))
@@ -135,6 +135,15 @@ namespace Monsters_Around
                 UpdateCursor(mouse, dt);
                 _combatLogView.UpdateScrollInput(mouse, _prevMouseState, _lastScrollWheelValue,
                     _log, out _lastScrollWheelValue);
+            }
+
+            if (_state.IsVictory)
+            {
+                _menuView.UpdateVictory(_state, mouse, _prevMouseState);
+                if (!_state.IsVictory) ResetGame();
+                _prevMouseState = mouse;
+                base.Update(gameTime);
+                return;
             }
 
             if (_state.IsGameOver)
@@ -157,7 +166,32 @@ namespace Monsters_Around
 
             if (InputHandler.IsKeyPressed(Keys.Escape) || backEdge)
             {
-                OpenPauseMenu();
+                if (_state.IsCharacterScreenOpen)
+                    CharacterView.CloseScreen(_state);
+                else
+                    OpenPauseMenu();
+                _prevMouseState = mouse;
+                base.Update(gameTime);
+                return;
+            }
+
+            if (InputHandler.IsKeyPressed(Keys.Tab))
+            {
+                _state.IsCharacterScreenOpen = !_state.IsCharacterScreenOpen;
+                if (!_state.IsCharacterScreenOpen) CharacterView.CloseScreen(_state);
+                _prevMouseState = mouse;
+                base.Update(gameTime);
+                return;
+            }
+
+            if (_state.IsCharacterScreenOpen)
+            {
+                var overlayAlreadyOpen = _state.ShowLevelUpOverlay;
+                _characterView.Update(_state, mouse, _prevMouseState);
+                // Не вызываем LevelUpView в том же кадре, когда overlay только открылся —
+                // иначе клик по кнопке экрана персонажа просочится в LevelUpView.
+                if (_state.ShowLevelUpOverlay && overlayAlreadyOpen)
+                    _levelUpView.Update(_state, mouse, _prevMouseState);
                 _prevMouseState = mouse;
                 base.Update(gameTime);
                 return;
@@ -169,6 +203,10 @@ namespace Monsters_Around
 
             if (_state.EdgeFlashStrength > 0f)
                 _state.EdgeFlashStrength = Math.Max(0f, _state.EdgeFlashStrength - dt / GameConstants.EdgeFlashDurationSeconds);
+            if (_state.LevelUpEdgeFlashStrength > 0f)
+                _state.LevelUpEdgeFlashStrength = Math.Max(0f, _state.LevelUpEdgeFlashStrength - dt / GameConstants.LevelUpEdgeFlashDuration);
+            if (_state.PendingLevelUp)
+                _state.LevelUpBlinkAccumulator += dt;
             if (_state.HeroOverHeadHpBarTimer > 0f)
                 _state.HeroOverHeadHpBarTimer = Math.Max(0f, _state.HeroOverHeadHpBarTimer - dt);
             if (_state.HeroBumpAnimTimer > 0f)
@@ -191,10 +229,7 @@ namespace Monsters_Around
                 if (InputHandler.IsKeyPressed(Keys.Space) && !_player.IsMoving)
                 {
                     _combat.AdvanceTurnAndRegen(_state);
-                    _state.HeroStepsSinceEnemyTurn++;
-                    var allowMove = _state.HeroStepsSinceEnemyTurn >= 2;
-                    if (allowMove) _state.HeroStepsSinceEnemyTurn = 0;
-                    _enemies.ProcessTurn(allowMove, _map, _player, _state, _log, _combat);
+                    _enemies.ProcessTurn(_map, _player, _state, _log, _combat);
                     TryStairTransition();
                 }
                 else
@@ -208,10 +243,7 @@ namespace Monsters_Around
                     !_state.JustResolvedHeroBump && _player.Position != heroPosBefore)
                 {
                     _combat.AdvanceTurnAndRegen(_state);
-                    _state.HeroStepsSinceEnemyTurn++;
-                    var allowMove = _state.HeroStepsSinceEnemyTurn >= 2;
-                    if (allowMove) _state.HeroStepsSinceEnemyTurn = 0;
-                    _enemies.ProcessTurn(allowMove, _map, _player, _state, _log, _combat);
+                    _enemies.ProcessTurn(_map, _player, _state, _log, _combat);
                     TryStairTransition();
                 }
             }
@@ -233,7 +265,6 @@ namespace Monsters_Around
         {
             GraphicsDevice.Clear(Color.Black);
 
-            // ── World-space batch (camera transform) ────────────────────────────
             _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: _camera.GetViewMatrix());
             _map.Draw(_spriteBatch);
             DrawEnemies();
@@ -242,13 +273,16 @@ namespace Monsters_Around
             _combatLogView.DrawDamagePopups(_log);
             _spriteBatch.End();
 
-            // ── Screen-space UI ─────────────────────────────────────────────────
             if (_state.ShowFps && _debugFont != null) _hudView.DrawFps(_state);
             _minimapView.DrawMinimap(_map, _player);
             _combatLogView.Draw(_log);
             if (_state.ShowMapOverlay) _minimapView.DrawFullMapOverlay(_map, _player);
 
-            if (_state.IsGameOver)
+            if (_state.IsVictory)
+            {
+                _menuView.DrawVictory(_state, Mouse.GetState());
+            }
+            else if (_state.IsGameOver)
             {
                 _menuView.DrawGameOver(_state, Mouse.GetState());
             }
@@ -256,7 +290,18 @@ namespace Monsters_Around
             {
                 if (_state.IsPaused) _menuView.DrawPause(_state, Mouse.GetState());
                 _hudView.DrawHealthBar(_state);
-                if (!_state.IsPaused) _hudView.DrawDamageEdges(_state);
+                if (!_state.IsPaused)
+                {
+                    _hudView.DrawDamageEdges(_state);
+                    _hudView.DrawLevelUpEdge(_state);
+                }
+            }
+
+            if (_state.IsCharacterScreenOpen)
+            {
+                _characterView.Draw(_state, Mouse.GetState());
+                if (_state.ShowLevelUpOverlay)
+                    _levelUpView.Draw(_state, Mouse.GetState());
             }
 
             _hudView.DrawCursor(_state);
@@ -270,18 +315,27 @@ namespace Monsters_Around
             base.UnloadContent();
         }
 
-        // ── Enemy bump drawing ──────────────────────────────────────────────────
-
         private void DrawEnemies()
         {
             if (_uiPixel == null) return;
             foreach (var enemy in _enemies.Enemies)
             {
                 if (enemy.IsDead) continue;
-                enemy.Draw(_spriteBatch, _uiPixel, Color.IndianRed, Color.OrangeRed, GetEnemyBumpOffset(enemy));
+                if (!_map.IsExplored(enemy.Position.X, enemy.Position.Y)) continue;
+                // Цвет полоски HP отражает уровень врага
+                var barColor = enemy.EnemyLevel switch
+                {
+                    1 => new Color(220, 40,  40),   // красный
+                    2 => new Color(230, 120, 20),   // оранжевый
+                    3 => new Color(200, 195, 20),   // жёлтый
+                    4 => new Color(170, 30,  210),  // фиолетовый
+                    _ => new Color(230, 30,  130),  // малиновый (lv5)
+                };
+                enemy.Draw(_spriteBatch, _uiPixel, enemy.BodyColor, barColor, GetEnemyBumpOffset(enemy));
             }
         }
 
+        /// <summary>Вычисляет смещение героя для анимации удара (синусоида по направлению).</summary>
         private Vector2 GetHeroBumpOffset()
         {
             if (_state.HeroBumpAnimTimer <= 0f || _state.HeroBumpAnimDirection == Vector2.Zero)
@@ -302,8 +356,10 @@ namespace Monsters_Around
             return dir * amp;
         }
 
-        // ── Combat bump callback ────────────────────────────────────────────────
-
+        /// <summary>
+        /// Вызывается когда герой пытается войти на клетку с врагом.
+        /// Разрешает атаку и запускает задержанный ответный ход всех врагов.
+        /// </summary>
         private void HandleHeroBumpIntoEnemy(Point heroPos, Point enemyPos)
         {
             if (_state.HeroActionLocked || _state.HeroHealth <= 0) return;
@@ -313,7 +369,6 @@ namespace Monsters_Around
             if (enemy == null) return;
 
             _combat.AdvanceTurnAndRegen(_state);
-            _state.HeroStepsSinceEnemyTurn++;
 
             var bumpDir = new Vector2(enemyPos.X - heroPos.X, enemyPos.Y - heroPos.Y);
             if (bumpDir != Vector2.Zero)
@@ -323,14 +378,13 @@ namespace Monsters_Around
                 _state.StartEnemyBump(enemy, -bumpDir);
             }
 
-            var allowMove = _state.HeroStepsSinceEnemyTurn >= 2;
-            if (allowMove) _state.HeroStepsSinceEnemyTurn = 0;
-
             var died = _combat.ResolveHeroAttack(enemy, _player, _state, _log);
             if (died)
             {
                 _enemies.RemoveEnemy(enemy);
-                _log.AddMessage("Монстр убит", new Color(255, 130, 130));
+                _log.AddMessage($"{enemy.Name} убит", new Color(255, 130, 130));
+                _state.KillsByType[(int)enemy.Type]++;
+                GainXp(enemy.XpReward);
                 return;
             }
 
@@ -338,11 +392,9 @@ namespace Monsters_Around
             _state.PendingEnemyCounter = enemy;
             _state.PendingEnemyCounterDelayRemaining = GameConstants.EnemyActionDelaySeconds;
             _state.PendingEnemyActionPhase = true;
-            _state.PendingEnemyActionAllowMovement = allowMove;
         }
 
-        // ── Pending enemy counter ───────────────────────────────────────────────
-
+        /// <summary>Ждёт истечения задержки и проводит ответный ход врага.</summary>
         private void UpdatePendingEnemyCounter(float dt)
         {
             _state.PendingEnemyCounterDelayRemaining = Math.Max(0f, _state.PendingEnemyCounterDelayRemaining - dt);
@@ -353,7 +405,7 @@ namespace Monsters_Around
                 _state.PendingEnemyActionPhase = false;
                 if (!_state.IsGameOver)
                 {
-                    _enemies.ProcessTurn(_state.PendingEnemyActionAllowMovement, _map, _player, _state, _log, _combat);
+                    _enemies.ProcessTurn(_map, _player, _state, _log, _combat);
                     TryStairTransition();
                 }
             }
@@ -362,15 +414,11 @@ namespace Monsters_Around
             _state.HeroActionLocked = false;
         }
 
-        // ── Stair transitions ────────────────────────────────────────────────────
-
         private void TryStairTransition()
         {
             var newMap = _floors.HandleStairTransitions(_map, _state, _player, _enemies, _log, _tilesetTexture);
             if (newMap != null) _map = newMap;
         }
-
-        // ── Pause / game-over helpers ────────────────────────────────────────────
 
         private void OpenPauseMenu()
         {
@@ -382,13 +430,22 @@ namespace Monsters_Around
 
         private void ResetGame()
         {
-            _state.HeroHealth     = GameConstants.HeroMaxHealth;
+            _state.HeroHealth           = GameConstants.HeroMaxHealth;
+            _state.HeroLevel            = 1;
+            _state.HeroXp               = 0;
+            _state.HeroDamageBonus      = 0;
+            _state.HeroMaxHealthBonus   = 0;
+            _state.HeroCritChanceBonus  = 0f;
+            _state.PendingLevelUp           = false;
+            _state.IsCharacterScreenOpen    = false;
+            _state.ShowLevelUpOverlay       = false;
+            _state.LevelUpSelectedIndex     = 0;
+            _state.LevelUpEdgeFlashStrength = 0f;
+            _state.LevelUpBlinkAccumulator  = 0f;
             _state.HeroActionLocked = false;
             _state.PendingEnemyCounter = null;
             _state.PendingEnemyCounterDelayRemaining = 0f;
             _state.PendingEnemyActionPhase = false;
-            _state.PendingEnemyActionAllowMovement = false;
-            _state.HeroStepsSinceEnemyTurn = 0;
             _state.HeroTurnsSinceRegen = 0;
             _state.HeroOverHeadHpBarTimer = 0f;
             _state.EdgeFlashStrength = 0f;
@@ -401,6 +458,10 @@ namespace Monsters_Around
             _state.StairTransitionLock = false;
             _state.JustResolvedHeroBump = false;
             _state.GameOverSelectedIndex = 0;
+            _state.IsVictory = false;
+            _state.VictorySelectedIndex = 0;
+            Array.Clear(_state.KillsByType, 0, _state.KillsByType.Length);
+            _state.TotalXpGained = 0;
             _state.IsPaused = false;
             _state.PauseScreenState = PauseScreen.Main;
             IsMouseVisible = false;
@@ -413,7 +474,20 @@ namespace Monsters_Around
             _enemies.SpawnEnemies(_map, _player, _state);
         }
 
-        // ── FPS counter ─────────────────────────────────────────────────────────
+        private void GainXp(int amount)
+        {
+            _state.TotalXpGained += amount;
+            if (_state.HeroLevel >= GameConstants.MaxLevel || _state.PendingLevelUp) return;
+            _state.HeroXp += amount;
+            var needed = GameConstants.XpNeeded(_state.HeroLevel);
+            if (_state.HeroXp < needed) return;
+            _state.HeroXp -= needed;
+            // Уровень вырастет только когда игрок выберет улучшение через TAB
+            _state.PendingLevelUp           = true;
+            _state.LevelUpSelectedIndex     = 0;
+            _state.LevelUpEdgeFlashStrength = 1f;
+            _log.AddMessage("Новый уровень! Нажмите TAB", new Color(100, 255, 100));
+        }
 
         private void UpdateFps(float dt)
         {
@@ -426,8 +500,6 @@ namespace Monsters_Around
                 _state.FpsTimer -= 1f;
             }
         }
-
-        // ── Cursor (hide when idle) ──────────────────────────────────────────────
 
         private void UpdateCursor(MouseState mouse, float dt)
         {
@@ -445,8 +517,6 @@ namespace Monsters_Around
             }
             IsMouseVisible = false;
         }
-
-        // ── Fullscreen helpers ───────────────────────────────────────────────────
 
         private void ToggleFullscreen() => SetFullscreen(!_graphics.IsFullScreen);
 

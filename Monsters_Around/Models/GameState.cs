@@ -7,49 +7,65 @@ namespace Monsters_Around.Models
 
     public class GameState
     {
-        // Hero vitals
         public int HeroHealth = GameConstants.HeroMaxHealth;
         public int HeroTurnsSinceRegen;
 
-        // Floor navigation
+        public int HeroLevel = 1;
+        public int HeroXp = 0;
+
+        public int   HeroDamageBonus      = 0;
+        public int   HeroMaxHealthBonus   = 0;
+        public float HeroCritChanceBonus  = 0f;
+
+        public int EffectiveMaxHealth => GameConstants.HeroMaxHealth + HeroMaxHealthBonus;
+
+        public bool PendingLevelUp        = false;  // XP накоплен, улучшение ещё не выбрано
+        public bool IsCharacterScreenOpen = false;
+        public bool ShowLevelUpOverlay    = false;
+        public int  LevelUpSelectedIndex  = 0;
+
+        public float LevelUpEdgeFlashStrength = 0f;
+        public float LevelUpBlinkAccumulator  = 0f;
+
         public int CurrentFloorIndex;
         public bool StairTransitionLock;
 
-        // Screen state
         public bool IsGameOver;
+        public bool IsVictory;
+        public int  VictorySelectedIndex;
         public bool IsPaused;
         public PauseScreen PauseScreenState = PauseScreen.Main;
         public int PauseKeyboardIndex;
         public int GameOverSelectedIndex;
         public bool VoluntaryExitRequested;
 
-        // Turn sequencing
         public bool HeroActionLocked;
         public float PendingEnemyCounterDelayRemaining;
         public Enemy PendingEnemyCounter;
         public bool PendingEnemyActionPhase;
-        public bool PendingEnemyActionAllowMovement;
-        public int HeroStepsSinceEnemyTurn;
         public bool JustResolvedHeroBump;
 
-        // Visual feedback
         public float EdgeFlashStrength;
         public float HeroOverHeadHpBarTimer;
 
-        // Bump animations
         public float HeroBumpAnimTimer;
         public Vector2 HeroBumpAnimDirection;
         public Dictionary<Enemy, float> EnemyBumpAnimTimers { get; } = new();
         public Dictionary<Enemy, Vector2> EnemyBumpAnimDirections { get; } = new();
 
-        // HUD flags
         public bool ShowFps;
         public bool ShowMapOverlay;
         public float FpsTimer;
         public int FpsFrameCounter;
         public int CurrentFps;
 
-        // Custom cursor
+        // Статистика за текущую игру (для экрана победы)
+        /// <summary>Количество убитых врагов по типу (индекс = (int)EnemyType).</summary>
+        public int[] KillsByType { get; } = new int[5];
+        /// <summary>Суммарный полученный опыт.</summary>
+        public int TotalXpGained;
+        public int TotalKills => KillsByType[0] + KillsByType[1] + KillsByType[2] + KillsByType[3] + KillsByType[4];
+
         public float GameCursorAlpha;
         public float MouseIdleTime;
         public Point LastMousePosition;

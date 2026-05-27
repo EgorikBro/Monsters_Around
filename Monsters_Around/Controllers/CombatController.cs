@@ -28,11 +28,11 @@ namespace Monsters_Around.Controllers
             state.HeroTurnsSinceRegen++;
             if (state.HeroTurnsSinceRegen < 3) return;
             state.HeroTurnsSinceRegen = 0;
-            if (state.HeroHealth > 0 && state.HeroHealth < GameConstants.HeroMaxHealth)
-                state.HeroHealth = Math.Min(GameConstants.HeroMaxHealth, state.HeroHealth + 1);
+            if (state.HeroHealth > 0 && state.HeroHealth < state.EffectiveMaxHealth)
+                state.HeroHealth = Math.Min(state.EffectiveMaxHealth, state.HeroHealth + 1);
         }
 
-        // Returns true if target died.
+        /// <summary>Разрешает атаку героя по цели. Возвращает true, если цель погибла.</summary>
         public bool ResolveHeroAttack(Enemy target, Player player, GameState state, CombatLog log)
         {
             if (target == null || target.IsDead || state.HeroHealth <= 0) return false;
@@ -49,14 +49,16 @@ namespace Monsters_Around.Controllers
 
             if (_random.NextDouble() < GetBlockChance(target.Defense))
             {
-                log.AddMessage("Монстр блокирует удар", new Color(170, 220, 255));
+                log.AddMessage($"{target.Name} блокирует удар", new Color(170, 220, 255));
                 return false;
             }
 
-            var isCrit = _random.NextDouble() < GameConstants.HeroCritChance;
+            var critChance = GameConstants.HeroCritChance + state.HeroCritChanceBonus;
+            var isCrit = _random.NextDouble() < critChance;
             var damage = isCrit
-                ? GameConstants.HeroCritDamage
-                : _random.Next(GameConstants.HeroDamageMin, GameConstants.HeroDamageMax + 1);
+                ? GameConstants.HeroCritDamage + state.HeroDamageBonus
+                : _random.Next(GameConstants.HeroDamageMin + state.HeroDamageBonus,
+                               GameConstants.HeroDamageMax + state.HeroDamageBonus + 1);
             damage = ApplyDefenseReduction(damage, target.Defense);
 
             target.TakeDamage(damage);
@@ -72,22 +74,31 @@ namespace Monsters_Around.Controllers
         {
             if (attacker == null || attacker.IsDead || state.HeroHealth <= 0) return;
 
-            var heroPos = player.Position;
+            var heroPos  = player.Position;
             var enemyPos = attacker.Position;
-            var dist = Math.Abs(heroPos.X - enemyPos.X) + Math.Abs(heroPos.Y - enemyPos.Y);
-            if (dist != 1) return;
+            var dx       = Math.Abs(heroPos.X - enemyPos.X);
+            var dy       = Math.Abs(heroPos.Y - enemyPos.Y);
+            var distManhattan = dx + dy;
+            var distChebyshev = Math.Max(dx, dy);
 
-            var dir = new Vector2(heroPos.X - enemyPos.X, heroPos.Y - enemyPos.Y);
-            if (dir != Vector2.Zero)
+            if (attacker.AttackRange == 1 && distManhattan != 1) return;
+            if (attacker.AttackRange  > 1 && distChebyshev > attacker.AttackRange) return;
+
+            // Анимация удара только при ближнем контакте
+            if (distManhattan == 1)
             {
-                dir.Normalize();
-                state.StartEnemyBump(attacker, dir);
-                state.StartHeroBump(-dir);
+                var dir = new Vector2(heroPos.X - enemyPos.X, heroPos.Y - enemyPos.Y);
+                if (dir != Vector2.Zero)
+                {
+                    dir.Normalize();
+                    state.StartEnemyBump(attacker, dir);
+                    state.StartHeroBump(-dir);
+                }
             }
 
             if (_random.NextDouble() < GameConstants.EnemyMissChance)
             {
-                log.AddMessage("Монстр промахивается", new Color(200, 200, 200));
+                log.AddMessage($"{attacker.Name} промахивается", new Color(200, 200, 200));
                 return;
             }
 
@@ -97,20 +108,25 @@ namespace Monsters_Around.Controllers
                 return;
             }
 
-            state.EdgeFlashStrength = 1f;
+            state.EdgeFlashStrength      = 1f;
             state.HeroOverHeadHpBarTimer = GameConstants.HeroOverHeadHpBarDurationSeconds;
 
             var isCrit = _random.NextDouble() < GameConstants.EnemyCritChance;
             var damage = isCrit
-                ? GameConstants.EnemyCritDamage
-                : _random.Next(GameConstants.EnemyDamageMin, GameConstants.EnemyDamageMax + 1);
+                ? attacker.CritDamage
+                : _random.Next(attacker.DamageMin, attacker.DamageMax + 1);
             damage = ApplyDefenseReduction(damage, GameConstants.HeroDefense);
 
             state.HeroHealth = Math.Max(0, state.HeroHealth - damage);
             log.AddDamagePopup(player.WorldPosition, damage, isCrit, GameConstants.TileSize);
-            log.AddMessage(
-                isCrit ? $"Крит по вам: {damage} ед. урона" : $"Вы получили {damage} ед. урона",
-                new Color(255, 150, 150));
+
+            var isRanged = attacker.AttackRange > 1 && distManhattan > 1;
+            if (isCrit)
+                log.AddMessage($"Крит от {attacker.Name}: {damage} ед.", new Color(255, 120, 120));
+            else if (isRanged)
+                log.AddMessage($"{attacker.Name} атакует издали: {damage} ед.", new Color(230, 130, 220));
+            else
+                log.AddMessage($"{attacker.Name} нанёс {damage} ед. урона", new Color(255, 150, 150));
 
             if (state.HeroHealth <= 0)
             {

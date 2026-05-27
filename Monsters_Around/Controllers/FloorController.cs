@@ -40,7 +40,7 @@ namespace Monsters_Around.Controllers
             _generatedFloors.Clear();
         }
 
-        // Returns the new current map if a transition occurred, null otherwise.
+        /// <summary>Проверяет лестницу под игроком и выполняет переход между этажами. Возвращает новую карту или null, если перехода не было.</summary>
         public Map HandleStairTransitions(Map currentMap, GameState state, Player player,
             EnemyController enemies, CombatLog log, Texture2D tilesetTexture)
         {
@@ -55,7 +55,16 @@ namespace Monsters_Around.Controllers
 
             Map newMap = null;
             if (tile == TileType.StairDown)
+            {
+                if (state.CurrentFloorIndex >= GameConstants.MaxFloor - 1)
+                {
+                    // Последний этаж пройден — победа
+                    state.IsVictory = true;
+                    state.StairTransitionLock = true;
+                    return null;
+                }
                 newMap = MoveToFloor(state.CurrentFloorIndex + 1, true, state, player, enemies, log, tilesetTexture);
+            }
             else if (tile == TileType.StairUp && state.CurrentFloorIndex > 0)
                 newMap = MoveToFloor(state.CurrentFloorIndex - 1, false, state, player, enemies, log, tilesetTexture);
 

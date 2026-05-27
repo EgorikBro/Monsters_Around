@@ -38,26 +38,106 @@ namespace Monsters_Around.Views
         {
             if (_pixel == null || _font == null) return;
 
-            var vp = _graphicsDevice.Viewport;
-            const int barH = 16;
-            const int padding = 12;
-            const int barW = 320;
+            var vp    = _graphicsDevice.Viewport;
+            var lineH = _font.LineSpacing;
 
-            var hpText = state.HeroHealth.ToString();
-            var textSize = _font.MeasureString(hpText);
-            var y = vp.Height - barH - padding;
-            var barX = (vp.Width - barW) / 2;
-            var textX = Math.Max(0, barX - (int)textSize.X - 12);
-            var textPos = new Vector2(textX, y - (textSize.Y - barH) * 0.5f);
-            var ratio = MathHelper.Clamp((float)state.HeroHealth / GameConstants.HeroMaxHealth, 0f, 1f);
-            var fillW = (int)(barW * ratio);
+            const int hpBarH   = 22;
+            const int xpBarH   = 14;
+            const int rowGap   = 10;
+            const int padX     = 16;
+            const int padY     = 10;
+            const int labelGap = 12;
+            const int panelW   = 540;
+
+            var floorLabel = $"Эт.{state.CurrentFloorIndex + 1}/{GameConstants.MaxFloor}";
+            var xpLabel = state.HeroLevel >= GameConstants.MaxLevel
+                ? $"Ур.{state.HeroLevel}  MAX"
+                : state.PendingLevelUp
+                    ? $"Ур.{state.HeroLevel}  ↑"
+                    : $"Ур.{state.HeroLevel}";
+            var hpLabel = $"♥  {state.HeroHealth} / {state.EffectiveMaxHealth}";
+
+            var labelW = (int)Math.Max(
+                _font.MeasureString(xpLabel).X,
+                _font.MeasureString(hpLabel).X);
+            var barW = Math.Max(80, panelW - padX * 2 - labelW - labelGap);
+
+            var xpRowH = Math.Max(lineH, xpBarH);
+            var hpRowH = Math.Max(lineH, hpBarH);
+            var panelH = padY + xpRowH + rowGap + hpRowH + padY;
+
+            var panelX = (vp.Width  - panelW) / 2;
+            var panelY =  vp.Height - panelH  - 8;
+            var barX   =  panelX + padX + labelW + labelGap;
+
+            var xpBarY   = panelY + padY + (xpRowH - xpBarH) / 2;
+            var xpLabelY = panelY + padY + (xpRowH - lineH)  / 2;
+            var hpBarY   = panelY + padY + xpRowH + rowGap + (hpRowH - hpBarH) / 2;
+            var hpLabelY = panelY + padY + xpRowH + rowGap + (hpRowH - lineH)  / 2;
+
+            var xpNeeded = GameConstants.XpNeeded(state.HeroLevel);
+            var xpRatio  = state.HeroLevel >= GameConstants.MaxLevel ? 1f
+                : MathHelper.Clamp((float)state.HeroXp / xpNeeded, 0f, 1f);
+            var hpRatio  = MathHelper.Clamp((float)state.HeroHealth / state.EffectiveMaxHealth, 0f, 1f);
+            var xpFillW  = (int)(barW * xpRatio);
+            var hpFillW  = (int)(barW * hpRatio);
+
+            var xpBarColor = new Color(80, 180, 255);
+
+            // Мигание надписи «Ур.» зелёным при ожидании прокачки
+            Color xpLabelColor;
+            if (state.PendingLevelUp)
+            {
+                var pulse = 0.5f + 0.5f * MathF.Sin(
+                    state.LevelUpBlinkAccumulator * GameConstants.LevelUpBlinkSpeed * MathF.PI * 2f);
+                xpLabelColor = Color.Lerp(xpBarColor, Color.LimeGreen, pulse);
+            }
+            else
+            {
+                xpLabelColor = xpBarColor;
+            }
+
+            var hpFillColor  = hpRatio > 0.5f ? new Color(210, 45, 45)
+                : hpRatio > 0.25f ? new Color(210, 100, 0)
+                : new Color(255, 30, 30);
+            var hpLabelColor = hpRatio > 0.35f ? Color.White : new Color(255, 150, 150);
 
             _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
-            _spriteBatch.DrawString(_font, hpText, textPos + Vector2.One, Color.Black * 0.35f);
-            _spriteBatch.DrawString(_font, hpText, textPos, Color.White);
-            _spriteBatch.Draw(_pixel, new Rectangle(barX, y, barW, barH), Color.Black * 0.5f);
-            if (fillW > 0)
-                _spriteBatch.Draw(_pixel, new Rectangle(barX, y, fillW, barH), Color.Red);
+
+            _spriteBatch.Draw(_pixel,
+                new Rectangle(panelX, panelY, panelW, panelH), Color.Black * 0.52f);
+            _spriteBatch.Draw(_pixel,
+                new Rectangle(panelX, panelY, panelW, 2), new Color(50, 70, 110) * 0.9f);
+
+            _spriteBatch.Draw(_pixel, new Rectangle(barX, xpBarY, barW, xpBarH), Color.Black * 0.55f);
+            if (xpFillW > 0)
+                _spriteBatch.Draw(_pixel, new Rectangle(barX, xpBarY, xpFillW, xpBarH), xpBarColor);
+            _spriteBatch.Draw(_pixel, new Rectangle(barX, xpBarY, barW, 1), Color.White * 0.10f);
+
+            _spriteBatch.DrawString(_font, xpLabel,
+                new Vector2(panelX + padX, xpLabelY) + Vector2.One, Color.Black * 0.45f);
+            _spriteBatch.DrawString(_font, xpLabel,
+                new Vector2(panelX + padX, xpLabelY), xpLabelColor);
+
+            // Номер этажа — справа в строке опыта
+            var floorSz = _font.MeasureString(floorLabel);
+            var floorX  = panelX + panelW - padX - (int)floorSz.X;
+            var floorY  = xpLabelY;
+            _spriteBatch.DrawString(_font, floorLabel,
+                new Vector2(floorX, floorY) + Vector2.One, Color.Black * 0.45f);
+            _spriteBatch.DrawString(_font, floorLabel,
+                new Vector2(floorX, floorY), new Color(160, 200, 255));
+
+            _spriteBatch.Draw(_pixel, new Rectangle(barX, hpBarY, barW, hpBarH), Color.Black * 0.55f);
+            if (hpFillW > 0)
+                _spriteBatch.Draw(_pixel, new Rectangle(barX, hpBarY, hpFillW, hpBarH), hpFillColor);
+            _spriteBatch.Draw(_pixel, new Rectangle(barX, hpBarY, barW, 1), Color.White * 0.10f);
+
+            _spriteBatch.DrawString(_font, hpLabel,
+                new Vector2(panelX + padX, hpLabelY) + Vector2.One, Color.Black * 0.45f);
+            _spriteBatch.DrawString(_font, hpLabel,
+                new Vector2(panelX + padX, hpLabelY), hpLabelColor);
+
             _spriteBatch.End();
         }
 
@@ -79,7 +159,23 @@ namespace Monsters_Around.Views
             _spriteBatch.End();
         }
 
-        // Must be called inside an active world-space SpriteBatch.Begin() block.
+        public void DrawLevelUpEdge(GameState state)
+        {
+            if (_pixel == null || state.LevelUpEdgeFlashStrength <= 0.001f) return;
+
+            var vp = _graphicsDevice.Viewport;
+            const int thickness = 26;
+            var c = Color.LimeGreen * (0.1f + state.LevelUpEdgeFlashStrength * 0.75f);
+
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            _spriteBatch.Draw(_pixel, new Rectangle(0, 0, vp.Width, thickness), c);
+            _spriteBatch.Draw(_pixel, new Rectangle(0, vp.Height - thickness, vp.Width, thickness), c);
+            _spriteBatch.Draw(_pixel, new Rectangle(0, 0, thickness, vp.Height), c);
+            _spriteBatch.Draw(_pixel, new Rectangle(vp.Width - thickness, 0, thickness, vp.Height), c);
+            _spriteBatch.End();
+        }
+
+        /// <summary>Рисует полоску HP над головой героя. Должен вызываться внутри активного блока SpriteBatch.Begin() в мировых координатах.</summary>
         public void DrawOverheadHpBar(GameState state, Player player, Map map)
         {
             if (_pixel == null || map == null) return;

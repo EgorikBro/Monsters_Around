@@ -36,8 +36,6 @@ namespace Monsters_Around.Views
             _graphicsDevice = graphicsDevice;
         }
 
-        // ── Pause menu ─────────────────────────────────────────────────────────
-
         public void UpdatePause(GameState state, MouseState mouse, MouseState prevMouse)
         {
             if (InputHandler.IsKeyPressed(Keys.Escape))
@@ -162,8 +160,6 @@ namespace Monsters_Around.Views
             DrawButton(backBtn, backHover ? BtnHover : BtnIdle, "Назад", false);
         }
 
-        // ── Game-over menu ─────────────────────────────────────────────────────
-
         public void UpdateGameOver(GameState state, MouseState mouse, MouseState prevMouse)
         {
             var vp = _graphicsDevice.Viewport;
@@ -181,7 +177,7 @@ namespace Monsters_Around.Views
                             prevMouse.LeftButton == ButtonState.Pressed && r.Contains(mouse.X, mouse.Y);
                 if (click || (InputHandler.IsKeyPressed(Keys.Enter) && state.GameOverSelectedIndex == i))
                 {
-                    if (i == 0) { state.IsGameOver = false; /* caller resets game */ }
+                    if (i == 0) { state.IsGameOver = false; }
                     else        state.VoluntaryExitRequested = true;
                     return;
                 }
@@ -223,7 +219,149 @@ namespace Monsters_Around.Views
             finally { _spriteBatch.End(); }
         }
 
-        // ── Shared helpers ─────────────────────────────────────────────────────
+        // ──────────────────────────────── Экран победы ────────────────────────────────
+
+        private static readonly string[] _killTypeLabels =
+            { "Зомби", "Скелеты", "Слизни", "Маги", "Пауки" };
+
+        public void UpdateVictory(GameState state, MouseState mouse, MouseState prevMouse)
+        {
+            var vp = _graphicsDevice.Viewport;
+            ComputeVictoryLayout(state, vp, out _, out var btnLeft, out var btnTop);
+
+            var labels = new[] { "Играть снова", "Выход" };
+            for (var i = 0; i < labels.Length; i++)
+            {
+                var r = new Rectangle(btnLeft, btnTop + i * (BtnH + Gap), BtnW, BtnH);
+                if (r.Contains(mouse.X, mouse.Y)) state.VictorySelectedIndex = i;
+
+                var click = mouse.LeftButton  == ButtonState.Released &&
+                            prevMouse.LeftButton == ButtonState.Pressed && r.Contains(mouse.X, mouse.Y);
+                if (click || (InputHandler.IsKeyPressed(Keys.Enter) && state.VictorySelectedIndex == i))
+                {
+                    if (i == 0) state.IsVictory = false;
+                    else        state.VoluntaryExitRequested = true;
+                    return;
+                }
+            }
+
+            if (InputHandler.IsKeyPressed(Keys.Down))
+                state.VictorySelectedIndex = (state.VictorySelectedIndex + 1) % labels.Length;
+            else if (InputHandler.IsKeyPressed(Keys.Up))
+                state.VictorySelectedIndex = (state.VictorySelectedIndex - 1 + labels.Length) % labels.Length;
+        }
+
+        public void DrawVictory(GameState state, MouseState mouse)
+        {
+            if (_font == null || _pixel == null) return;
+            var vp = _graphicsDevice.Viewport;
+
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            try
+            {
+                _spriteBatch.Draw(_pixel, new Rectangle(0, 0, vp.Width, vp.Height), Color.Black * 0.70f);
+
+                ComputeVictoryLayout(state, vp, out var panel, out var btnLeft, out var btnTop);
+                DrawPanelFrame(panel);
+
+                var cx = panel.X + PanelPad;
+                var cy = panel.Y + PanelPad;
+
+                // Заголовок
+                const string title = "ПОБЕДА!";
+                var titleColor = new Color(255, 220, 60);
+                _spriteBatch.DrawString(_font, title, new Vector2(cx, cy) + Vector2.One * 2, Color.Black * 0.5f);
+                _spriteBatch.DrawString(_font, title, new Vector2(cx, cy), titleColor);
+                var titleW = (int)_font.MeasureString(title).X;
+                _spriteBatch.Draw(_pixel, new Rectangle(cx, cy + _font.LineSpacing + 4, titleW, 3), titleColor);
+                cy += _font.LineSpacing + 18;
+
+                // Подзаголовок
+                const string sub = "Подземелье успешно пройдено!";
+                _spriteBatch.DrawString(_font, sub, new Vector2(cx, cy) + Vector2.One, Color.Black * 0.4f);
+                _spriteBatch.DrawString(_font, sub, new Vector2(cx, cy), new Color(200, 235, 200));
+                cy += _font.LineSpacing + 14;
+
+                // Статистика
+                var lh = _font.LineSpacing + 3;
+                DrawVictoryStat(cx, panel.Right - PanelPad, ref cy, lh,
+                    "Уровень героя", state.HeroLevel.ToString());
+                DrawVictoryStat(cx, panel.Right - PanelPad, ref cy, lh,
+                    "Этажей пройдено", $"{GameConstants.MaxFloor} / {GameConstants.MaxFloor}");
+                DrawVictoryStat(cx, panel.Right - PanelPad, ref cy, lh,
+                    "Монстров убито", state.TotalKills.ToString());
+                DrawVictoryStat(cx, panel.Right - PanelPad, ref cy, lh,
+                    "Опыт получен", state.TotalXpGained.ToString());
+
+                cy += 6;
+
+                // Убийства по типам (два столбца)
+                var col1X = cx + 20;
+                var col2X = cx + 20 + (panel.Width - PanelPad * 2) / 2;
+                var killColor = new Color(210, 215, 230);
+                for (var i = 0; i < _killTypeLabels.Length; i++)
+                {
+                    var kx    = i % 2 == 0 ? col1X : col2X;
+                    var ky    = cy + (i / 2) * lh;
+                    var kText = $"{_killTypeLabels[i]}: {state.KillsByType[i]}";
+                    _spriteBatch.DrawString(_font, kText, new Vector2(kx, ky) + Vector2.One, Color.Black * 0.3f);
+                    _spriteBatch.DrawString(_font, kText, new Vector2(kx, ky), killColor);
+                }
+
+                // Кнопки
+                var labels = new[] { "Играть снова", "Выход" };
+                for (var i = 0; i < labels.Length; i++)
+                {
+                    var r        = new Rectangle(btnLeft, btnTop + i * (BtnH + Gap), BtnW, BtnH);
+                    var selected = state.VictorySelectedIndex == i;
+                    var hover    = r.Contains(mouse.X, mouse.Y);
+                    DrawButton(r, hover || selected ? BtnHover : BtnIdle, labels[i], false);
+                }
+            }
+            finally { _spriteBatch.End(); }
+        }
+
+        private void DrawVictoryStat(int leftX, int rightEdge, ref int cy, int lh,
+            string label, string value)
+        {
+            var labelColor = new Color(160, 175, 200);
+            var valueColor = new Color(235, 245, 255);
+            _spriteBatch.DrawString(_font, $"{label}:", new Vector2(leftX, cy) + Vector2.One, Color.Black * 0.3f);
+            _spriteBatch.DrawString(_font, $"{label}:", new Vector2(leftX, cy), labelColor);
+            var vsz = _font.MeasureString(value);
+            var vx  = rightEdge - (int)vsz.X;
+            _spriteBatch.DrawString(_font, value, new Vector2(vx, cy) + Vector2.One, Color.Black * 0.3f);
+            _spriteBatch.DrawString(_font, value, new Vector2(vx, cy), valueColor);
+            cy += lh;
+        }
+
+        private void ComputeVictoryLayout(GameState state, Viewport vp,
+            out Rectangle panel, out int btnLeft, out int btnTop)
+        {
+            if (_font == null)
+            {
+                panel   = new Rectangle(vp.Width / 2 - 200, vp.Height / 2 - 150, 400, 300);
+                btnLeft = panel.X + PanelPad;
+                btnTop  = panel.Bottom - PanelPad - 2 * (BtnH + Gap);
+                return;
+            }
+
+            var lh        = _font.LineSpacing + 3;
+            var titleH    = _font.LineSpacing + 18;    // ПОБЕДА!
+            var subH      = _font.LineSpacing + 14;    // подзаголовок
+            const int statRows  = 4;                   // 4 строки статистики
+            const int killRows  = 3;                   // 5 типов в 2 колонки = 3 строки
+            var statsH    = statRows * lh + 6 + killRows * lh;
+            var btnsH     = 2 * BtnH + Gap + 14;      // 2 кнопки + отступ сверху
+            const int panelW = 520;
+            var panelH    = PanelPad + titleH + subH + statsH + btnsH + PanelPad;
+
+            panel   = new Rectangle((vp.Width - panelW) / 2, (vp.Height - panelH) / 2, panelW, panelH);
+            btnLeft = panel.X + (panelW - BtnW) / 2;
+            btnTop  = panel.Bottom - PanelPad - 2 * BtnH - Gap;
+        }
+
+        // ──────────────────────────────────────────────────────────────────────────────
 
         public static void ClosePause(GameState state)
         {

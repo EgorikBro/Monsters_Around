@@ -119,7 +119,7 @@ namespace Monsters_Around.Views
             _spriteBatch.End();
         }
 
-        // Must be called inside an active world-space SpriteBatch.Begin() block.
+        /// <summary>Рисует всплывающий урон над персонажами. Должен вызываться внутри активного блока SpriteBatch.Begin() в мировых координатах.</summary>
         public void DrawDamagePopups(CombatLog log)
         {
             if (_font == null || log.DamagePopups.Count == 0) return;
