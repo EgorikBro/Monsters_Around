@@ -38,6 +38,8 @@ namespace Monsters_Around.Controllers
             state.HeroTurnsSinceRegen = 0;
 
             if (map == null || player == null) return;
+            // Сердечки расставляются один раз на весь срок жизни этажа
+            var heartsAlreadyPlaced = map.HeartsSpawned;
 
             var rooms    = map.Rooms;
             var reserved = new HashSet<Point>
@@ -88,6 +90,58 @@ namespace Monsters_Around.Controllers
                     if (!spawned) break;
                 }
             }
+
+            if (!heartsAlreadyPlaced)
+                SpawnHearts(map);
+        }
+
+        /// <summary>
+        /// В каждой комнате без врагов гарантированно появляется 1–2 сердечка.
+        /// Вызывается один раз на жизнь этажа.
+        /// </summary>
+        private void SpawnHearts(Map map)
+        {
+            var rooms     = map.Rooms;
+            var reserved  = new HashSet<Point> { map.PlayerSpawnPoint, map.StairUpPoint, map.StairDownPoint };
+
+            for (var roomIndex = 0; roomIndex < rooms.Count; roomIndex++)
+            {
+                if (roomIndex == map.StartingRoomIndex) continue;
+
+                var room = rooms[roomIndex];
+
+                // Есть ли хоть один враг в этой комнате?
+                var hasEnemy = false;
+                foreach (var pos in EnemyPositions)
+                {
+                    if (room.Contains(pos)) { hasEnemy = true; break; }
+                }
+                if (hasEnemy) continue;
+
+                // Нет врагов — спавним 1 или 2 сердечка
+                var count = _random.Next(1, 3);
+                for (var i = 0; i < count; i++)
+                {
+                    const int maxAttempts = 30;
+                    for (var attempt = 0; attempt < maxAttempts; attempt++)
+                    {
+                        var xMin = room.Left  + 1;
+                        var xMax = Math.Max(xMin + 1, room.Right  - 1);
+                        var yMin = room.Top   + 1;
+                        var yMax = Math.Max(yMin + 1, room.Bottom - 1);
+
+                        var p = new Point(_random.Next(xMin, xMax), _random.Next(yMin, yMax));
+                        if (!map.IsWalkable(p.X, p.Y))       continue;
+                        if (reserved.Contains(p))             continue;
+                        if (map.HeartPositions.Contains(p))   continue;
+
+                        map.HeartPositions.Add(p);
+                        break;
+                    }
+                }
+            }
+
+            map.HeartsSpawned = true;
         }
 
         /// <summary>
@@ -112,7 +166,8 @@ namespace Monsters_Around.Controllers
 
                 if (enemy.AttackRange > 1)
                 {
-                    // Маг: оба действия (атака и движение) регулируются одним кулдауном
+                    // Маг: оба действия (атака и движение) регулируются одним кулдауном.
+                    // Атакует только при наличии прямой видимости; преследует всегда.
                     if (enemy.ActionCooldown > 0) { enemy.ActionCooldown--; continue; }
 
                     if (distChebyshev <= enemy.AttackRange && HasLineOfSight(enemy.Position, heroPos, map))

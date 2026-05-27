@@ -20,13 +20,14 @@ namespace Monsters_Around.Views
         private static readonly Color TitleColor   = new(255, 230, 80);
         private static readonly Color Overlay      = Color.Black * 0.65f;
 
-        private const int BtnW     = 360;
-        private const int BtnH     = 52;
-        private const int Gap      = 12;
-        private const int PanelPad = 32;
-        private const int TitleH   = 64;
-        private const int SubtitleH = 44;
-        private const int HintH    = 32;
+        private const int BtnW       = 360;
+        private const int BtnH       = 52;
+        private const int Gap        = 12;
+        private const int PanelPad   = 32;
+        private const int TitleH     = 64;
+        private const int SubtitleH  = 36;
+        private const int AutoInfoH  = 44;   // строка авто-прироста
+        private const int HintH      = 32;
 
         public LevelUpView(SpriteBatch spriteBatch, SpriteFont font, Texture2D pixel, GraphicsDevice graphicsDevice)
         {
@@ -101,10 +102,16 @@ namespace Monsters_Around.Views
                     new Rectangle((int)titlePos.X, (int)(titlePos.Y + _font.LineSpacing + 4), titleW, 3),
                     new Color(255, 215, 0));
 
-                const string subtitle  = "Выберите улучшение:";
+                const string subtitle  = "Выберите дополнительное усиление:";
                 var subPos = new Vector2(panel.X + PanelPad, panel.Y + PanelPad + TitleH);
                 _spriteBatch.DrawString(_font, subtitle, subPos + Vector2.One, Color.Black * 0.35f);
                 _spriteBatch.DrawString(_font, subtitle, subPos, new Color(200, 210, 230));
+
+                // Строка авто-прироста
+                var autoText = BuildAutoInfoText(state.HeroLevel);
+                var autoPos  = new Vector2(panel.X + PanelPad, panel.Y + PanelPad + TitleH + SubtitleH);
+                _spriteBatch.DrawString(_font, autoText, autoPos + Vector2.One, Color.Black * 0.35f);
+                _spriteBatch.DrawString(_font, autoText, autoPos, new Color(120, 220, 140));
 
                 string[] labels =
                 {
@@ -154,8 +161,22 @@ namespace Monsters_Around.Views
 
         private static void ApplyUpgrade(GameState state, int index)
         {
-            state.HeroLevel++;   // уровень растёт только при выборе улучшения
+            state.HeroLevel++;
 
+            // ── Автоматический прирост всех характеристик ──────────────────────────
+            state.HeroMaxHealthBonus += GameConstants.AutoHealthPerLevel;
+            state.HeroHealth = Math.Min(
+                state.HeroHealth + GameConstants.AutoHealthPerLevel,
+                state.EffectiveMaxHealth);
+
+            state.HeroCritChanceBonus = Math.Min(
+                state.HeroCritChanceBonus + GameConstants.AutoCritPerLevel,
+                GameConstants.MaxCritChance - GameConstants.HeroCritChance);
+
+            if (state.HeroLevel % GameConstants.AutoDamageLevelStep == 0)
+                state.HeroDamageBonus++;
+
+            // ── Дополнительное усиление по выбору игрока ───────────────────────────
             switch (index)
             {
                 case 0:
@@ -168,7 +189,9 @@ namespace Monsters_Around.Views
                         state.EffectiveMaxHealth);
                     break;
                 case 2:
-                    state.HeroCritChanceBonus += GameConstants.CritUpgradeAmount;
+                    state.HeroCritChanceBonus = Math.Min(
+                        state.HeroCritChanceBonus + GameConstants.CritUpgradeAmount,
+                        GameConstants.MaxCritChance - GameConstants.HeroCritChance);
                     break;
             }
 
@@ -179,14 +202,23 @@ namespace Monsters_Around.Views
             state.LevelUpBlinkAccumulator = 0f;
         }
 
+        /// <summary>Строит строку с авто-приростом для текущего перехода на level.</summary>
+        private static string BuildAutoInfoText(int newLevel)
+        {
+            var dmgThisLevel = newLevel % GameConstants.AutoDamageLevelStep == 0;
+            return dmgThisLevel
+                ? $"Авто: ♥ +{GameConstants.AutoHealthPerLevel}   Крит +0.5%   Урон +1"
+                : $"Авто: ♥ +{GameConstants.AutoHealthPerLevel}   Крит +0.5%";
+        }
+
         private void ComputeLayout(Viewport vp, out Rectangle panel, out int firstBtnY, out int btnX)
         {
             var btnsTotalH = 3 * BtnH + 2 * Gap;
-            var panelH     = PanelPad + TitleH + SubtitleH + btnsTotalH + HintH + PanelPad;
+            var panelH     = PanelPad + TitleH + SubtitleH + AutoInfoH + btnsTotalH + HintH + PanelPad;
             var panelW     = BtnW + PanelPad * 2;
             panel      = new Rectangle((vp.Width - panelW) / 2, (vp.Height - panelH) / 2, panelW, panelH);
             btnX       = panel.X + PanelPad;
-            firstBtnY  = panel.Y + PanelPad + TitleH + SubtitleH;
+            firstBtnY  = panel.Y + PanelPad + TitleH + SubtitleH + AutoInfoH;
         }
 
         private void DrawPanelFrame(Rectangle panel)

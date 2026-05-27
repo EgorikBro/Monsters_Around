@@ -43,9 +43,16 @@ namespace Monsters_Around.Models
         public const int MaxLevel      = 20;
         public const int MaxFloor      = 10;   // последний этаж (индекс 9)
         public const int MaxEnemyLevel = 5;    // максимальный уровень врага
-        public const int DamageUpgradeAmount   = 1;    // +1 к мин. и макс. урону
-        public const int HealthUpgradeAmount   = 15;   // +15 макс. HP и лечение
-        public const float CritUpgradeAmount   = 0.04f; // +4% к шансу крита
+
+        // Автоматический прирост характеристик героя за каждый уровень
+        public const int   AutoHealthPerLevel  = 5;      // +5 макс. HP (и лечение на 5)
+        public const float AutoCritPerLevel    = 0.005f; // +0.5% шанс крита
+        public const int   AutoDamageLevelStep = 3;      // +1 урон каждые N уровней (3, 6, 9 …)
+        public const float MaxCritChance       = 0.90f;  // потолок суммарного шанса крита
+
+        public const int DamageUpgradeAmount   = 1;    // +1 к мин. и макс. урону (выбор)
+        public const int HealthUpgradeAmount   = 15;   // +15 макс. HP и лечение (выбор)
+        public const float CritUpgradeAmount   = 0.04f; // +4% к шансу крита (выбор)
 
         /// <summary>Возвращает количество опыта, необходимое для достижения следующего уровня. Принимает текущий уровень (1..14).</summary>
         public static int XpNeeded(int level)

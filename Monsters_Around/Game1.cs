@@ -15,6 +15,7 @@ namespace Monsters_Around
         private Texture2D _tilesetTexture;
         private SpriteFont _debugFont;
         private Texture2D _uiPixel;
+        private Texture2D _heartTexture;
 
         private Map _map;
         private Player _player;
@@ -87,6 +88,7 @@ namespace Monsters_Around
             var playerTex = new Texture2D(GraphicsDevice, 1, 1);
             playerTex.SetData(new[] { new Color(50, 120, 220) });
 
+            _heartTexture = Content.Load<Texture2D>("heart_16x16");
             _floors.LoadAllContent(_tilesetTexture);
             _player.LoadContent(playerTex);
 
@@ -130,7 +132,7 @@ namespace Monsters_Around
                     _log.ScrollOffset = Math.Max(0, _log.History.Count - GameConstants.CombatLogExpandedVisibleCount);
             }
 
-            if (!_state.IsPaused && !_state.IsGameOver)
+            if (!_state.IsPaused)
             {
                 UpdateCursor(mouse, dt);
                 _combatLogView.UpdateScrollInput(mouse, _prevMouseState, _lastScrollWheelValue,
@@ -191,7 +193,12 @@ namespace Monsters_Around
                 // Не вызываем LevelUpView в том же кадре, когда overlay только открылся —
                 // иначе клик по кнопке экрана персонажа просочится в LevelUpView.
                 if (_state.ShowLevelUpOverlay && overlayAlreadyOpen)
+                {
                     _levelUpView.Update(_state, mouse, _prevMouseState);
+                    // Если улучшение только что выбрано — проверить запас XP для следующего уровня
+                    if (!_state.ShowLevelUpOverlay)
+                        TryTriggerLevelUp();
+                }
                 _prevMouseState = mouse;
                 base.Update(gameTime);
                 return;
@@ -200,6 +207,7 @@ namespace Monsters_Around
             if (InputHandler.IsKeyPressed(Keys.F11)) ToggleFullscreen();
             if (InputHandler.IsKeyPressed(Keys.F1))  _state.ShowFps = !_state.ShowFps;
             if (InputHandler.IsKeyPressed(Keys.M))   _state.ShowMapOverlay = !_state.ShowMapOverlay;
+            if (InputHandler.IsKeyPressed(Keys.E) && !_state.HeroActionLocked) TryUseHeart();
 
             if (_state.EdgeFlashStrength > 0f)
                 _state.EdgeFlashStrength = Math.Max(0f, _state.EdgeFlashStrength - dt / GameConstants.EdgeFlashDurationSeconds);
@@ -242,6 +250,7 @@ namespace Monsters_Around
                 if (!_state.HeroActionLocked && _map == mapBefore &&
                     !_state.JustResolvedHeroBump && _player.Position != heroPosBefore)
                 {
+                    TryPickupHeart();
                     _combat.AdvanceTurnAndRegen(_state);
                     _enemies.ProcessTurn(_map, _player, _state, _log, _combat);
                     TryStairTransition();
@@ -267,6 +276,8 @@ namespace Monsters_Around
 
             _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: _camera.GetViewMatrix());
             _map.Draw(_spriteBatch);
+            DrawMageAttackRanges();
+            DrawHearts();
             DrawEnemies();
             _player.Draw(_spriteBatch, GetHeroBumpOffset());
             _hudView.DrawOverheadHpBar(_state, _player, _map);
@@ -304,6 +315,8 @@ namespace Monsters_Around
                     _levelUpView.Draw(_state, Mouse.GetState());
             }
 
+            if (!_state.IsVictory && !_state.IsGameOver && !_state.IsPaused)
+                _hudView.DrawHeartCount(_state, _heartTexture);
             _hudView.DrawCursor(_state);
             base.Draw(gameTime);
         }
@@ -333,6 +346,88 @@ namespace Monsters_Around
                 };
                 enemy.Draw(_spriteBatch, _uiPixel, enemy.BodyColor, barColor, GetEnemyBumpOffset(enemy));
             }
+        }
+
+        /// <summary>
+        /// Рисует зону атаки всех видимых дальнобойных врагов.
+        /// Подсвечивает только тайлы, до которых есть прямая видимость от врага,
+        /// поэтому стены естественно обрезают зону.
+        /// </summary>
+        private void DrawMageAttackRanges()
+        {
+            if (_uiPixel == null) return;
+            var ts = GameConstants.TileSize;
+
+            foreach (var enemy in _enemies.Enemies)
+            {
+                if (enemy.IsDead || enemy.AttackRange <= 1) continue;
+                if (!_map.IsExplored(enemy.Position.X, enemy.Position.Y)) continue;
+
+                var r  = enemy.AttackRange;
+                var ep = enemy.Position;
+
+                for (var ddx = -r; ddx <= r; ddx++)
+                {
+                    for (var ddy = -r; ddy <= r; ddy++)
+                    {
+                        // Радиус Чебышева — квадратная зона
+                        if (Math.Max(Math.Abs(ddx), Math.Abs(ddy)) > r) continue;
+
+                        var tx = ep.X + ddx;
+                        var ty = ep.Y + ddy;
+                        if (tx < 0 || ty < 0 || tx >= _map.Width || ty >= _map.Height) continue;
+                        if (!_map.IsExplored(tx, ty)) continue;
+                        if (_map.GetTileType(tx, ty) == TileType.Wall) continue;
+                        if (!_enemies.HasLineOfSight(ep, new Point(tx, ty), _map)) continue;
+
+                        // Граница зоны чуть ярче — помогает видеть точную дистанцию
+                        var onBorder = Math.Max(Math.Abs(ddx), Math.Abs(ddy)) == r;
+                        var alpha    = onBorder ? 0.32f : 0.15f;
+                        _spriteBatch.Draw(_uiPixel,
+                            new Rectangle(tx * ts, ty * ts, ts, ts),
+                            new Color(190, 60, 255) * alpha);
+                    }
+                }
+            }
+        }
+
+        /// <summary>Рисует сердечки, лежащие на полу этажа (мировые координаты).</summary>
+        private void DrawHearts()
+        {
+            if (_heartTexture == null) return;
+            var ts = GameConstants.TileSize;
+            foreach (var pos in _map.HeartPositions)
+            {
+                if (!_map.IsExplored(pos.X, pos.Y)) continue;
+                _spriteBatch.Draw(_heartTexture,
+                    new Rectangle(pos.X * ts, pos.Y * ts, ts, ts),
+                    Color.White);
+            }
+        }
+
+        /// <summary>Если герой стоит на тайле с сердечком — подбирает его.</summary>
+        private void TryPickupHeart()
+        {
+            var idx = _map.HeartPositions.IndexOf(_player.Position);
+            if (idx < 0) return;
+            _map.HeartPositions.RemoveAt(idx);
+            _state.HeroHearts++;
+            _log.AddMessage("♥ Подобрано сердечко", new Color(255, 140, 180));
+        }
+
+        /// <summary>Использует одно сердечко из инвентаря, восстанавливая 50 HP.</summary>
+        private void TryUseHeart()
+        {
+            if (_state.HeroHearts <= 0)
+            {
+                _log.AddMessage("Нет сердечек", new Color(200, 120, 120));
+                return;
+            }
+            _state.HeroHearts--;
+            var healed = Math.Min(50, _state.EffectiveMaxHealth - _state.HeroHealth);
+            _state.HeroHealth = Math.Min(_state.HeroHealth + 50, _state.EffectiveMaxHealth);
+            _state.HeroOverHeadHpBarTimer = GameConstants.HeroOverHeadHpBarDurationSeconds;
+            _log.AddMessage($"♥ Восстановлено {healed} HP", new Color(255, 140, 180));
         }
 
         /// <summary>Вычисляет смещение героя для анимации удара (синусоида по направлению).</summary>
@@ -385,6 +480,11 @@ namespace Monsters_Around
                 _log.AddMessage($"{enemy.Name} убит", new Color(255, 130, 130));
                 _state.KillsByType[(int)enemy.Type]++;
                 GainXp(enemy.XpReward);
+                // Остальные враги реагируют на ход героя даже если атакованный убит
+                _state.HeroActionLocked                  = true;
+                _state.PendingEnemyCounter               = null;
+                _state.PendingEnemyCounterDelayRemaining = GameConstants.EnemyActionDelaySeconds;
+                _state.PendingEnemyActionPhase           = true;
                 return;
             }
 
@@ -462,6 +562,7 @@ namespace Monsters_Around
             _state.VictorySelectedIndex = 0;
             Array.Clear(_state.KillsByType, 0, _state.KillsByType.Length);
             _state.TotalXpGained = 0;
+            _state.HeroHearts = 0;
             _state.IsPaused = false;
             _state.PauseScreenState = PauseScreen.Main;
             IsMouseVisible = false;
@@ -477,14 +578,25 @@ namespace Monsters_Around
         private void GainXp(int amount)
         {
             _state.TotalXpGained += amount;
-            if (_state.HeroLevel >= GameConstants.MaxLevel || _state.PendingLevelUp) return;
-            _state.HeroXp += amount;
+            if (_state.HeroLevel >= GameConstants.MaxLevel) return;
+            _state.HeroXp += amount;   // XP копится всегда, даже пока ждём выбора улучшения
+            TryTriggerLevelUp();
+        }
+
+        /// <summary>
+        /// Проверяет, хватает ли накопленного XP для следующего уровня, и запускает уведомление.
+        /// Вызывается и при получении опыта, и сразу после применения улучшения —
+        /// чтобы XP, накопленный «про запас», не пропал.
+        /// </summary>
+        private void TryTriggerLevelUp()
+        {
+            if (_state.PendingLevelUp) return;
+            if (_state.HeroLevel >= GameConstants.MaxLevel) return;
             var needed = GameConstants.XpNeeded(_state.HeroLevel);
             if (_state.HeroXp < needed) return;
-            _state.HeroXp -= needed;
-            // Уровень вырастет только когда игрок выберет улучшение через TAB
-            _state.PendingLevelUp           = true;
-            _state.LevelUpSelectedIndex     = 0;
+            _state.HeroXp              -= needed;
+            _state.PendingLevelUp       = true;
+            _state.LevelUpSelectedIndex = 0;
             _state.LevelUpEdgeFlashStrength = 1f;
             _log.AddMessage("Новый уровень! Нажмите TAB", new Color(100, 255, 100));
         }

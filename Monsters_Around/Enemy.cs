@@ -49,11 +49,11 @@ namespace Monsters_Around
                 case EnemyType.Zombie:
                     Name         = "Зомби";
                     BodyColor    = new Color(0, 110, 0);
-                    MaxHealth    = 55;
-                    Defense      = 10;
-                    DamageMin    = 5;
-                    DamageMax    = 9;
-                    CritDamage   = 13;
+                    MaxHealth    = 50;
+                    Defense      = 8;
+                    DamageMin    = 3;
+                    DamageMax    = 6;
+                    CritDamage   = 9;
                     MoveInterval = 3;
                     AttackRange  = 1;
                     XpReward     = 3;
@@ -90,7 +90,7 @@ namespace Monsters_Around
                     DamageMin    = 4;
                     DamageMax    = 8;
                     CritDamage   = 12;
-                    MoveInterval = 2;
+                    MoveInterval = 3;
                     AttackRange  = 5;
                     XpReward     = 2;
                     break;

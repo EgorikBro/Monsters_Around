@@ -194,9 +194,71 @@ namespace Monsters_Around.Views
                 _spriteBatch.Draw(_pixel, new Rectangle(leftX, topY, fillW, barH), Color.Red * (0.95f * alpha));
         }
 
+        /// <summary>Рисует счётчик сердечек в правом нижнем углу экрана.</summary>
+        public void DrawHeartCount(GameState state, Texture2D heartTex)
+        {
+            if (heartTex == null || _font == null || _pixel == null) return;
+
+            const int   spriteScale = 3;                 // 16×16 → 48×48 на экране
+            const int   spriteSize  = 16 * spriteScale;
+            const int   padX        = 18;
+            const int   padY        = 14;
+            const int   innerPad    = 14;
+            const float textScale   = 1.5f;
+            const float hintScale   = 0.90f;
+
+            var countText  = $"x {state.HeroHearts}";
+            var rawTextSz  = _font.MeasureString(countText);
+            var scaledTextW = (int)(rawTextSz.X * textScale);
+            var scaledTextH = (int)(rawTextSz.Y * textScale);
+
+            var totalW = innerPad + spriteSize + 10 + scaledTextW + innerPad;
+            var totalH = Math.Max(spriteSize, scaledTextH) + innerPad * 2;
+
+            var vp = _graphicsDevice.Viewport;
+            var panelX = vp.Width  - totalW - padX;
+            var panelY = vp.Height - totalH - padY;
+
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+
+            // Фон-плашка
+            _spriteBatch.Draw(_pixel,
+                new Rectangle(panelX, panelY, totalW, totalH),
+                Color.Black * 0.50f);
+            _spriteBatch.Draw(_pixel,
+                new Rectangle(panelX, panelY, totalW, 2),
+                new Color(50, 70, 110) * 0.9f);
+
+            var spriteX = panelX + innerPad;
+            var spriteY = panelY + (totalH - spriteSize) / 2;
+            _spriteBatch.Draw(heartTex,
+                new Rectangle(spriteX, spriteY, spriteSize, spriteSize),
+                Color.White);
+
+            var textX = spriteX + spriteSize + 10;
+            var textY = panelY + (totalH - scaledTextH) / 2;
+            var textColor = state.HeroHearts > 0 ? new Color(255, 200, 200) : new Color(160, 160, 160);
+            _spriteBatch.DrawString(_font, countText,
+                new Vector2(textX + 1, textY + 1), Color.Black * 0.5f,
+                0f, Vector2.Zero, new Vector2(textScale), SpriteEffects.None, 0f);
+            _spriteBatch.DrawString(_font, countText,
+                new Vector2(textX, textY), textColor,
+                0f, Vector2.Zero, new Vector2(textScale), SpriteEffects.None, 0f);
+
+            // Подсказка «E – использовать» над плашкой
+            const string hint   = "E - использовать";
+            var hintSz  = _font.MeasureString(hint) * hintScale;
+            var hintPos = new Vector2(panelX + (totalW - hintSz.X) * 0.5f, panelY - hintSz.Y - 5);
+            _spriteBatch.DrawString(_font, hint, hintPos,
+                new Color(160, 160, 180) * 0.70f,
+                0f, Vector2.Zero, new Vector2(hintScale), SpriteEffects.None, 0f);
+
+            _spriteBatch.End();
+        }
+
         public void DrawCursor(GameState state)
         {
-            if (_pixel == null || state.GameCursorAlpha <= 0.001f || state.IsPaused || state.IsGameOver) return;
+            if (_pixel == null || state.GameCursorAlpha <= 0.001f || state.IsPaused) return;
 
             var p = state.LastMousePosition;
             var c = Color.White * state.GameCursorAlpha;

@@ -48,6 +48,11 @@ namespace Monsters_Around
         public IReadOnlyList<Rectangle> Rooms => _rooms;
         public int StartingRoomIndex => 0;
 
+        /// <summary>Позиции не подобранных сердечек на этом этаже.</summary>
+        public List<Point> HeartPositions { get; } = new();
+        /// <summary>True после первого спавна врагов — сердечки расставляются один раз.</summary>
+        public bool HeartsSpawned { get; set; }
+
         public Map(int width, int height, int tileSize, int floorIndex, Random random)
         {
             Width = width;

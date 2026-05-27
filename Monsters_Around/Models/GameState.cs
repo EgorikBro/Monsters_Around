@@ -66,6 +66,8 @@ namespace Monsters_Around.Models
         public int TotalXpGained;
         public int TotalKills => KillsByType[0] + KillsByType[1] + KillsByType[2] + KillsByType[3] + KillsByType[4];
 
+        public int HeroHearts;
+
         public float GameCursorAlpha;
         public float MouseIdleTime;
         public Point LastMousePosition;

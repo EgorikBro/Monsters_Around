@@ -53,7 +53,8 @@ namespace Monsters_Around.Controllers
                 return false;
             }
 
-            var critChance = GameConstants.HeroCritChance + state.HeroCritChanceBonus;
+            var critChance = Math.Min(GameConstants.HeroCritChance + state.HeroCritChanceBonus,
+                                      GameConstants.MaxCritChance);
             var isCrit = _random.NextDouble() < critChance;
             var damage = isCrit
                 ? GameConstants.HeroCritDamage + state.HeroDamageBonus
