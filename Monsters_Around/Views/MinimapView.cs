@@ -92,10 +92,10 @@ namespace Monsters_Around.Views
 
                     var type = map.GetTileType(x, y);
                     Color color;
-                    if (type == TileType.StairDown)     color = Color.OrangeRed;
-                    else if (type == TileType.StairUp)  color = Color.CornflowerBlue;
-                    else if (type == TileType.Wall)     color = new Color(70, 70, 80, 190);
-                    else                                color = new Color(190, 190, 200, 230);
+                    if (type == TileType.StairDown) color = Color.OrangeRed;
+                    else if (type == TileType.StairUp) color = Color.CornflowerBlue;
+                    else if (type == TileType.Wall) color = new Color(70, 70, 80, 190);
+                    else color = new Color(190, 190, 200, 230);
 
                     _spriteBatch.Draw(_pixel, cellRect, color);
                 }

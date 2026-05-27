@@ -54,12 +54,12 @@ namespace Monsters_Around.Controllers
             }
 
             var critChance = Math.Min(GameConstants.HeroCritChance + state.HeroCritChanceBonus,
-                                      GameConstants.MaxCritChance);
+                GameConstants.MaxCritChance);
             var isCrit = _random.NextDouble() < critChance;
             var damage = isCrit
                 ? GameConstants.HeroCritDamage + state.HeroDamageBonus
                 : _random.Next(GameConstants.HeroDamageMin + state.HeroDamageBonus,
-                               GameConstants.HeroDamageMax + state.HeroDamageBonus + 1);
+                    GameConstants.HeroDamageMax + state.HeroDamageBonus + 1);
             damage = ApplyDefenseReduction(damage, target.Defense);
 
             target.TakeDamage(damage);
@@ -75,15 +75,15 @@ namespace Monsters_Around.Controllers
         {
             if (attacker == null || attacker.IsDead || state.HeroHealth <= 0) return;
 
-            var heroPos  = player.Position;
+            var heroPos = player.Position;
             var enemyPos = attacker.Position;
-            var dx       = Math.Abs(heroPos.X - enemyPos.X);
-            var dy       = Math.Abs(heroPos.Y - enemyPos.Y);
+            var dx = Math.Abs(heroPos.X - enemyPos.X);
+            var dy = Math.Abs(heroPos.Y - enemyPos.Y);
             var distManhattan = dx + dy;
             var distChebyshev = Math.Max(dx, dy);
 
             if (attacker.AttackRange == 1 && distManhattan != 1) return;
-            if (attacker.AttackRange  > 1 && distChebyshev > attacker.AttackRange) return;
+            if (attacker.AttackRange > 1 && distChebyshev > attacker.AttackRange) return;
 
             // Анимация удара только при ближнем контакте
             if (distManhattan == 1)
@@ -109,7 +109,7 @@ namespace Monsters_Around.Controllers
                 return;
             }
 
-            state.EdgeFlashStrength      = 1f;
+            state.EdgeFlashStrength = 1f;
             state.HeroOverHeadHpBarTimer = GameConstants.HeroOverHeadHpBarDurationSeconds;
 
             var isCrit = _random.NextDouble() < GameConstants.EnemyCritChance;

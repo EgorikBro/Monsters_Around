@@ -57,15 +57,15 @@ namespace Monsters_Around
 
         protected override void Initialize()
         {
-            _state   = new GameState();
-            _log     = new CombatLog();
-            _combat  = new CombatController(_random);
+            _state = new GameState();
+            _log = new CombatLog();
+            _combat = new CombatController(_random);
             _enemies = new EnemyController(_random);
-            _floors  = new FloorController(_random);
+            _floors = new FloorController(_random);
 
-            _map    = _floors.GetOrCreate(0, null);
+            _map = _floors.GetOrCreate(0, null);
             _player = new Player(_map.PlayerSpawnPoint, _map);
-            _player.IsEnemyAt       = p => _enemies.IsEnemyAt(p);
+            _player.IsEnemyAt = p => _enemies.IsEnemyAt(p);
             _player.OnBumpRequested = HandleHeroBumpIntoEnemy;
             _map.UpdateExploration(_player.Position);
             _enemies.SpawnEnemies(_map, _player, _state);
@@ -78,9 +78,9 @@ namespace Monsters_Around
 
         protected override void LoadContent()
         {
-            _spriteBatch    = new SpriteBatch(GraphicsDevice);
+            _spriteBatch = new SpriteBatch(GraphicsDevice);
             _tilesetTexture = Content.Load<Texture2D>("Dungeon tileset");
-            _debugFont      = Content.Load<SpriteFont>("DebugFont");
+            _debugFont = Content.Load<SpriteFont>("DebugFont");
 
             _uiPixel = new Texture2D(GraphicsDevice, 1, 1);
             _uiPixel.SetData(new[] { Color.White });
@@ -92,11 +92,11 @@ namespace Monsters_Around
             _floors.LoadAllContent(_tilesetTexture);
             _player.LoadContent(playerTex);
 
-            _hudView       = new HudView(_spriteBatch, _debugFont, _uiPixel, GraphicsDevice);
-            _minimapView   = new MinimapView(_spriteBatch, _uiPixel, GraphicsDevice);
+            _hudView = new HudView(_spriteBatch, _debugFont, _uiPixel, GraphicsDevice);
+            _minimapView = new MinimapView(_spriteBatch, _uiPixel, GraphicsDevice);
             _combatLogView = new CombatLogView(_spriteBatch, _debugFont, _uiPixel, GraphicsDevice);
-            _menuView      = new MenuView(_spriteBatch, _debugFont, _uiPixel, GraphicsDevice);
-            _levelUpView   = new LevelUpView(_spriteBatch, _debugFont, _uiPixel, GraphicsDevice);
+            _menuView = new MenuView(_spriteBatch, _debugFont, _uiPixel, GraphicsDevice);
+            _levelUpView = new LevelUpView(_spriteBatch, _debugFont, _uiPixel, GraphicsDevice);
             _characterView = new CharacterView(_spriteBatch, _debugFont, _uiPixel, GraphicsDevice);
 
             _prevMouseState = Mouse.GetState();
@@ -116,11 +116,11 @@ namespace Monsters_Around
 
             InputHandler.Update();
             var mouse = Mouse.GetState();
-            var dt    = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-            var gamePad      = GamePad.GetState(PlayerIndex.One);
-            var backNow      = gamePad.Buttons.Back == ButtonState.Pressed;
-            var backEdge     = backNow && !_gamePadBackHeld;
+            var gamePad = GamePad.GetState(PlayerIndex.One);
+            var backNow = gamePad.Buttons.Back == ButtonState.Pressed;
+            var backEdge = backNow && !_gamePadBackHeld;
             _gamePadBackHeld = backNow;
 
             if (InputHandler.IsKeyPressed(Keys.T))
@@ -199,20 +199,23 @@ namespace Monsters_Around
                     if (!_state.ShowLevelUpOverlay)
                         TryTriggerLevelUp();
                 }
+
                 _prevMouseState = mouse;
                 base.Update(gameTime);
                 return;
             }
 
             if (InputHandler.IsKeyPressed(Keys.F11)) ToggleFullscreen();
-            if (InputHandler.IsKeyPressed(Keys.F1))  _state.ShowFps = !_state.ShowFps;
-            if (InputHandler.IsKeyPressed(Keys.M))   _state.ShowMapOverlay = !_state.ShowMapOverlay;
+            if (InputHandler.IsKeyPressed(Keys.F1)) _state.ShowFps = !_state.ShowFps;
+            if (InputHandler.IsKeyPressed(Keys.M)) _state.ShowMapOverlay = !_state.ShowMapOverlay;
             if (InputHandler.IsKeyPressed(Keys.E) && !_state.HeroActionLocked) TryUseHeart();
 
             if (_state.EdgeFlashStrength > 0f)
-                _state.EdgeFlashStrength = Math.Max(0f, _state.EdgeFlashStrength - dt / GameConstants.EdgeFlashDurationSeconds);
+                _state.EdgeFlashStrength =
+                    Math.Max(0f, _state.EdgeFlashStrength - dt / GameConstants.EdgeFlashDurationSeconds);
             if (_state.LevelUpEdgeFlashStrength > 0f)
-                _state.LevelUpEdgeFlashStrength = Math.Max(0f, _state.LevelUpEdgeFlashStrength - dt / GameConstants.LevelUpEdgeFlashDuration);
+                _state.LevelUpEdgeFlashStrength = Math.Max(0f,
+                    _state.LevelUpEdgeFlashStrength - dt / GameConstants.LevelUpEdgeFlashDuration);
             if (_state.PendingLevelUp)
                 _state.LevelUpBlinkAccumulator += dt;
             if (_state.HeroOverHeadHpBarTimer > 0f)
@@ -231,7 +234,7 @@ namespace Monsters_Around
             else
             {
                 var heroPosBefore = _player.Position;
-                var mapBefore     = _map;
+                var mapBefore = _map;
                 _state.JustResolvedHeroBump = false;
 
                 if (InputHandler.IsKeyPressed(Keys.Space) && !_player.IsMoving)
@@ -264,7 +267,8 @@ namespace Monsters_Around
             _camera.Follow(
                 _player.WorldPosition + new Vector2(GameConstants.TileSize * 0.5f, GameConstants.TileSize * 0.5f),
                 GraphicsDevice.Viewport,
-                new Point(GameConstants.MapWidth * GameConstants.TileSize, GameConstants.MapHeight * GameConstants.TileSize));
+                new Point(GameConstants.MapWidth * GameConstants.TileSize,
+                    GameConstants.MapHeight * GameConstants.TileSize));
 
             _prevMouseState = mouse;
             base.Update(gameTime);
@@ -338,11 +342,11 @@ namespace Monsters_Around
                 // Цвет полоски HP отражает уровень врага
                 var barColor = enemy.EnemyLevel switch
                 {
-                    1 => new Color(220, 40,  40),   // красный
-                    2 => new Color(230, 120, 20),   // оранжевый
-                    3 => new Color(200, 195, 20),   // жёлтый
-                    4 => new Color(170, 30,  210),  // фиолетовый
-                    _ => new Color(230, 30,  130),  // малиновый (lv5)
+                    1 => new Color(220, 40, 40), // красный
+                    2 => new Color(230, 120, 20), // оранжевый
+                    3 => new Color(200, 195, 20), // жёлтый
+                    4 => new Color(170, 30, 210), // фиолетовый
+                    _ => new Color(230, 30, 130), // малиновый (lv5)
                 };
                 enemy.Draw(_spriteBatch, _uiPixel, enemy.BodyColor, barColor, GetEnemyBumpOffset(enemy));
             }
@@ -363,7 +367,7 @@ namespace Monsters_Around
                 if (enemy.IsDead || enemy.AttackRange <= 1) continue;
                 if (!_map.IsExplored(enemy.Position.X, enemy.Position.Y)) continue;
 
-                var r  = enemy.AttackRange;
+                var r = enemy.AttackRange;
                 var ep = enemy.Position;
 
                 for (var ddx = -r; ddx <= r; ddx++)
@@ -382,7 +386,7 @@ namespace Monsters_Around
 
                         // Граница зоны чуть ярче — помогает видеть точную дистанцию
                         var onBorder = Math.Max(Math.Abs(ddx), Math.Abs(ddy)) == r;
-                        var alpha    = onBorder ? 0.32f : 0.15f;
+                        var alpha = onBorder ? 0.32f : 0.15f;
                         _spriteBatch.Draw(_uiPixel,
                             new Rectangle(tx * ts, ty * ts, ts, ts),
                             new Color(190, 60, 255) * alpha);
@@ -423,6 +427,7 @@ namespace Monsters_Around
                 _log.AddMessage("Нет сердечек", new Color(200, 120, 120));
                 return;
             }
+
             _state.HeroHearts--;
             var healed = Math.Min(50, _state.EffectiveMaxHealth - _state.HeroHealth);
             _state.HeroHealth = Math.Min(_state.HeroHealth + 50, _state.EffectiveMaxHealth);
@@ -481,10 +486,10 @@ namespace Monsters_Around
                 _state.KillsByType[(int)enemy.Type]++;
                 GainXp(enemy.XpReward);
                 // Остальные враги реагируют на ход героя даже если атакованный убит
-                _state.HeroActionLocked                  = true;
-                _state.PendingEnemyCounter               = null;
+                _state.HeroActionLocked = true;
+                _state.PendingEnemyCounter = null;
                 _state.PendingEnemyCounterDelayRemaining = GameConstants.EnemyActionDelaySeconds;
-                _state.PendingEnemyActionPhase           = true;
+                _state.PendingEnemyActionPhase = true;
                 return;
             }
 
@@ -530,18 +535,18 @@ namespace Monsters_Around
 
         private void ResetGame()
         {
-            _state.HeroHealth           = GameConstants.HeroMaxHealth;
-            _state.HeroLevel            = 1;
-            _state.HeroXp               = 0;
-            _state.HeroDamageBonus      = 0;
-            _state.HeroMaxHealthBonus   = 0;
-            _state.HeroCritChanceBonus  = 0f;
-            _state.PendingLevelUp           = false;
-            _state.IsCharacterScreenOpen    = false;
-            _state.ShowLevelUpOverlay       = false;
-            _state.LevelUpSelectedIndex     = 0;
+            _state.HeroHealth = GameConstants.HeroMaxHealth;
+            _state.HeroLevel = 1;
+            _state.HeroXp = 0;
+            _state.HeroDamageBonus = 0;
+            _state.HeroMaxHealthBonus = 0;
+            _state.HeroCritChanceBonus = 0f;
+            _state.PendingLevelUp = false;
+            _state.IsCharacterScreenOpen = false;
+            _state.ShowLevelUpOverlay = false;
+            _state.LevelUpSelectedIndex = 0;
             _state.LevelUpEdgeFlashStrength = 0f;
-            _state.LevelUpBlinkAccumulator  = 0f;
+            _state.LevelUpBlinkAccumulator = 0f;
             _state.HeroActionLocked = false;
             _state.PendingEnemyCounter = null;
             _state.PendingEnemyCounterDelayRemaining = 0f;
@@ -579,7 +584,7 @@ namespace Monsters_Around
         {
             _state.TotalXpGained += amount;
             if (_state.HeroLevel >= GameConstants.MaxLevel) return;
-            _state.HeroXp += amount;   // XP копится всегда, даже пока ждём выбора улучшения
+            _state.HeroXp += amount; // XP копится всегда, даже пока ждём выбора улучшения
             TryTriggerLevelUp();
         }
 
@@ -594,8 +599,8 @@ namespace Monsters_Around
             if (_state.HeroLevel >= GameConstants.MaxLevel) return;
             var needed = GameConstants.XpNeeded(_state.HeroLevel);
             if (_state.HeroXp < needed) return;
-            _state.HeroXp              -= needed;
-            _state.PendingLevelUp       = true;
+            _state.HeroXp -= needed;
+            _state.PendingLevelUp = true;
             _state.LevelUpSelectedIndex = 0;
             _state.LevelUpEdgeFlashStrength = 1f;
             _log.AddMessage("Новый уровень! Нажмите TAB", new Color(100, 255, 100));
@@ -625,8 +630,10 @@ namespace Monsters_Around
             {
                 _state.MouseIdleTime += dt;
                 if (_state.MouseIdleTime > GameConstants.MouseCursorIdleBeforeFade)
-                    _state.GameCursorAlpha = Math.Max(0f, _state.GameCursorAlpha - dt * GameConstants.MouseCursorFadeSpeed);
+                    _state.GameCursorAlpha =
+                        Math.Max(0f, _state.GameCursorAlpha - dt * GameConstants.MouseCursorFadeSpeed);
             }
+
             IsMouseVisible = false;
         }
 
@@ -640,21 +647,25 @@ namespace Monsters_Around
             {
                 if (isFullscreen)
                 {
-                    _windowedWidth  = Window.ClientBounds.Width  > 0 ? Window.ClientBounds.Width  : _windowedWidth;
+                    _windowedWidth = Window.ClientBounds.Width > 0 ? Window.ClientBounds.Width : _windowedWidth;
                     _windowedHeight = Window.ClientBounds.Height > 0 ? Window.ClientBounds.Height : _windowedHeight;
                     var mode = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
-                    _graphics.PreferredBackBufferWidth  = mode.Width;
+                    _graphics.PreferredBackBufferWidth = mode.Width;
                     _graphics.PreferredBackBufferHeight = mode.Height;
                 }
                 else
                 {
-                    _graphics.PreferredBackBufferWidth  = _windowedWidth;
+                    _graphics.PreferredBackBufferWidth = _windowedWidth;
                     _graphics.PreferredBackBufferHeight = _windowedHeight;
                 }
+
                 _graphics.IsFullScreen = isFullscreen;
                 _graphics.ApplyChanges();
             }
-            finally { _isApplyingDisplayChange = false; }
+            finally
+            {
+                _isApplyingDisplayChange = false;
+            }
         }
 
         private void OnClientSizeChanged(object sender, EventArgs e)
@@ -663,9 +674,9 @@ namespace Monsters_Around
             var w = Window.ClientBounds.Width;
             var h = Window.ClientBounds.Height;
             if (w <= 0 || h <= 0) return;
-            _windowedWidth  = w;
+            _windowedWidth = w;
             _windowedHeight = h;
-            _graphics.PreferredBackBufferWidth  = w;
+            _graphics.PreferredBackBufferWidth = w;
             _graphics.PreferredBackBufferHeight = h;
         }
 

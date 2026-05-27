@@ -13,27 +13,27 @@ namespace Monsters_Around.Views
         private readonly Texture2D _pixel;
         private readonly GraphicsDevice _graphicsDevice;
 
-        private static readonly Color PanelBg     = new(22, 33, 62);
-        private static readonly Color PanelBorder  = new(255, 215, 0);
-        private static readonly Color BtnIdle      = new(15, 52, 96);
-        private static readonly Color BtnHover     = new(26, 76, 130);
-        private static readonly Color TitleColor   = new(255, 230, 80);
-        private static readonly Color Overlay      = Color.Black * 0.65f;
+        private static readonly Color PanelBg = new(22, 33, 62);
+        private static readonly Color PanelBorder = new(255, 215, 0);
+        private static readonly Color BtnIdle = new(15, 52, 96);
+        private static readonly Color BtnHover = new(26, 76, 130);
+        private static readonly Color TitleColor = new(255, 230, 80);
+        private static readonly Color Overlay = Color.Black * 0.65f;
 
-        private const int BtnW       = 360;
-        private const int BtnH       = 52;
-        private const int Gap        = 12;
-        private const int PanelPad   = 32;
-        private const int TitleH     = 64;
-        private const int SubtitleH  = 36;
-        private const int AutoInfoH  = 44;   // строка авто-прироста
-        private const int HintH      = 32;
+        private const int BtnW = 360;
+        private const int BtnH = 52;
+        private const int Gap = 12;
+        private const int PanelPad = 32;
+        private const int TitleH = 64;
+        private const int SubtitleH = 36;
+        private const int AutoInfoH = 44; // строка авто-прироста
+        private const int HintH = 32;
 
         public LevelUpView(SpriteBatch spriteBatch, SpriteFont font, Texture2D pixel, GraphicsDevice graphicsDevice)
         {
             _spriteBatch = spriteBatch;
-            _font        = font;
-            _pixel       = pixel;
+            _font = font;
+            _pixel = pixel;
             _graphicsDevice = graphicsDevice;
         }
 
@@ -58,7 +58,7 @@ namespace Monsters_Around.Views
             }
 
             var choice = -1;
-            if (InputHandler.IsKeyPressed(Keys.D1) || InputHandler.IsKeyPressed(Keys.NumPad1))      choice = 0;
+            if (InputHandler.IsKeyPressed(Keys.D1) || InputHandler.IsKeyPressed(Keys.NumPad1)) choice = 0;
             else if (InputHandler.IsKeyPressed(Keys.D2) || InputHandler.IsKeyPressed(Keys.NumPad2)) choice = 1;
             else if (InputHandler.IsKeyPressed(Keys.D3) || InputHandler.IsKeyPressed(Keys.NumPad3)) choice = 2;
             else if (InputHandler.IsKeyPressed(Keys.Enter) || InputHandler.IsKeyPressed(Keys.Space))
@@ -70,7 +70,10 @@ namespace Monsters_Around.Views
                     var r = new Rectangle(btnX, firstBtnY + i * (BtnH + Gap), BtnW, BtnH);
                     if (mouse.LeftButton == ButtonState.Released &&
                         prevMouse.LeftButton == ButtonState.Pressed && r.Contains(mouse.X, mouse.Y))
-                    { choice = i; break; }
+                    {
+                        choice = i;
+                        break;
+                    }
                 }
             }
 
@@ -93,7 +96,7 @@ namespace Monsters_Around.Views
 
                 DrawPanelFrame(panel);
 
-                var title    = $"↑  УРОВЕНЬ {state.HeroLevel + 1}  ↑"; // уровень ещё не повышен, показываем будущий
+                var title = $"↑  УРОВЕНЬ {state.HeroLevel + 1}  ↑"; // уровень ещё не повышен, показываем будущий
                 var titlePos = new Vector2(panel.X + PanelPad, panel.Y + PanelPad);
                 _spriteBatch.DrawString(_font, title, titlePos + Vector2.One * 2, Color.Black * 0.45f);
                 _spriteBatch.DrawString(_font, title, titlePos, TitleColor);
@@ -102,14 +105,14 @@ namespace Monsters_Around.Views
                     new Rectangle((int)titlePos.X, (int)(titlePos.Y + _font.LineSpacing + 4), titleW, 3),
                     new Color(255, 215, 0));
 
-                const string subtitle  = "Выберите дополнительное усиление:";
+                const string subtitle = "Выберите дополнительное усиление:";
                 var subPos = new Vector2(panel.X + PanelPad, panel.Y + PanelPad + TitleH);
                 _spriteBatch.DrawString(_font, subtitle, subPos + Vector2.One, Color.Black * 0.35f);
                 _spriteBatch.DrawString(_font, subtitle, subPos, new Color(200, 210, 230));
 
                 // Строка авто-прироста
                 var autoText = BuildAutoInfoText(state.HeroLevel);
-                var autoPos  = new Vector2(panel.X + PanelPad, panel.Y + PanelPad + TitleH + SubtitleH);
+                var autoPos = new Vector2(panel.X + PanelPad, panel.Y + PanelPad + TitleH + SubtitleH);
                 _spriteBatch.DrawString(_font, autoText, autoPos + Vector2.One, Color.Black * 0.35f);
                 _spriteBatch.DrawString(_font, autoText, autoPos, new Color(120, 220, 140));
 
@@ -122,9 +125,9 @@ namespace Monsters_Around.Views
 
                 for (var i = 0; i < labels.Length; i++)
                 {
-                    var r       = new Rectangle(btnX, firstBtnY + i * (BtnH + Gap), BtnW, BtnH);
-                    var hover   = r.Contains(mouse.X, mouse.Y);
-                    var sel     = state.LevelUpSelectedIndex == i;
+                    var r = new Rectangle(btnX, firstBtnY + i * (BtnH + Gap), BtnW, BtnH);
+                    var hover = r.Contains(mouse.X, mouse.Y);
+                    var sel = state.LevelUpSelectedIndex == i;
 
                     if (sel)
                     {
@@ -139,24 +142,27 @@ namespace Monsters_Around.Views
                         Color.Black * 0.2f);
 
                     var labelSize = _font.MeasureString(labels[i]);
-                    var labelPos  = new Vector2(
-                        r.X + (r.Width  - labelSize.X) * 0.5f,
+                    var labelPos = new Vector2(
+                        r.X + (r.Width - labelSize.X) * 0.5f,
                         r.Y + (r.Height - labelSize.Y) * 0.5f);
                     _spriteBatch.DrawString(_font, labels[i], labelPos + Vector2.One, Color.Black * 0.5f);
                     _spriteBatch.DrawString(_font, labels[i], labelPos, Color.White);
                 }
 
-                const string hint      = "W/S или стрелки - навигация   Enter / 1-2-3 - выбор";
-                const float hintScale  = 0.7f;
-                var hintSize  = _font.MeasureString(hint) * hintScale;
-                var hintPos   = new Vector2(
+                const string hint = "W/S или стрелки - навигация   Enter / 1-2-3 - выбор";
+                const float hintScale = 0.7f;
+                var hintSize = _font.MeasureString(hint) * hintScale;
+                var hintPos = new Vector2(
                     panel.X + (panel.Width - hintSize.X) * 0.5f,
                     panel.Bottom - PanelPad / 2 - hintSize.Y);
                 _spriteBatch.DrawString(_font, hint, hintPos,
                     new Color(140, 150, 175) * 0.75f,
                     0f, Vector2.Zero, new Vector2(hintScale), SpriteEffects.None, 0f);
             }
-            finally { _spriteBatch.End(); }
+            finally
+            {
+                _spriteBatch.End();
+            }
         }
 
         private static void ApplyUpgrade(GameState state, int index)
@@ -195,10 +201,10 @@ namespace Monsters_Around.Views
                     break;
             }
 
-            state.ShowLevelUpOverlay      = false;
-            state.PendingLevelUp          = false;
-            state.IsCharacterScreenOpen   = false;
-            state.LevelUpSelectedIndex    = 0;
+            state.ShowLevelUpOverlay = false;
+            state.PendingLevelUp = false;
+            state.IsCharacterScreenOpen = false;
+            state.LevelUpSelectedIndex = 0;
             state.LevelUpBlinkAccumulator = 0f;
         }
 
@@ -214,21 +220,21 @@ namespace Monsters_Around.Views
         private void ComputeLayout(Viewport vp, out Rectangle panel, out int firstBtnY, out int btnX)
         {
             var btnsTotalH = 3 * BtnH + 2 * Gap;
-            var panelH     = PanelPad + TitleH + SubtitleH + AutoInfoH + btnsTotalH + HintH + PanelPad;
-            var panelW     = BtnW + PanelPad * 2;
-            panel      = new Rectangle((vp.Width - panelW) / 2, (vp.Height - panelH) / 2, panelW, panelH);
-            btnX       = panel.X + PanelPad;
-            firstBtnY  = panel.Y + PanelPad + TitleH + SubtitleH + AutoInfoH;
+            var panelH = PanelPad + TitleH + SubtitleH + AutoInfoH + btnsTotalH + HintH + PanelPad;
+            var panelW = BtnW + PanelPad * 2;
+            panel = new Rectangle((vp.Width - panelW) / 2, (vp.Height - panelH) / 2, panelW, panelH);
+            btnX = panel.X + PanelPad;
+            firstBtnY = panel.Y + PanelPad + TitleH + SubtitleH + AutoInfoH;
         }
 
         private void DrawPanelFrame(Rectangle panel)
         {
             _spriteBatch.Draw(_pixel, panel, PanelBg);
             const int t = 3;
-            _spriteBatch.Draw(_pixel, new Rectangle(panel.X, panel.Y,              panel.Width, t),      PanelBorder);
-            _spriteBatch.Draw(_pixel, new Rectangle(panel.X, panel.Bottom - t,     panel.Width, t),      PanelBorder);
-            _spriteBatch.Draw(_pixel, new Rectangle(panel.X, panel.Y,              t,           panel.Height), PanelBorder);
-            _spriteBatch.Draw(_pixel, new Rectangle(panel.Right - t, panel.Y,      t,           panel.Height), PanelBorder);
+            _spriteBatch.Draw(_pixel, new Rectangle(panel.X, panel.Y, panel.Width, t), PanelBorder);
+            _spriteBatch.Draw(_pixel, new Rectangle(panel.X, panel.Bottom - t, panel.Width, t), PanelBorder);
+            _spriteBatch.Draw(_pixel, new Rectangle(panel.X, panel.Y, t, panel.Height), PanelBorder);
+            _spriteBatch.Draw(_pixel, new Rectangle(panel.Right - t, panel.Y, t, panel.Height), PanelBorder);
         }
     }
 }

@@ -21,7 +21,8 @@ namespace Monsters_Around.Controllers
             if (_generatedFloors.TryGetValue(floorIndex, out var existing))
                 return existing;
 
-            var map = new Map(GameConstants.MapWidth, GameConstants.MapHeight, GameConstants.TileSize, floorIndex, _random);
+            var map = new Map(GameConstants.MapWidth, GameConstants.MapHeight, GameConstants.TileSize, floorIndex,
+                _random);
             if (tilesetTexture != null)
                 map.LoadContent(tilesetTexture);
 
@@ -63,6 +64,7 @@ namespace Monsters_Around.Controllers
                     state.StairTransitionLock = true;
                     return null;
                 }
+
                 newMap = MoveToFloor(state.CurrentFloorIndex + 1, true, state, player, enemies, log, tilesetTexture);
             }
             else if (tile == TileType.StairUp && state.CurrentFloorIndex > 0)

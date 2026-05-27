@@ -50,6 +50,7 @@ namespace Monsters_Around
 
         /// <summary>Позиции не подобранных сердечек на этом этаже.</summary>
         public List<Point> HeartPositions { get; } = new();
+
         /// <summary>True после первого спавна врагов — сердечки расставляются один раз.</summary>
         public bool HeartsSpawned { get; set; }
 
@@ -450,6 +451,7 @@ namespace Monsters_Around
                                 }
                             }
                         }
+
                         proximityPenalty = adjacentFloors * 100;
                     }
 

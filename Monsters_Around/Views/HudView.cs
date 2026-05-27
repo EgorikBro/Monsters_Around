@@ -38,16 +38,16 @@ namespace Monsters_Around.Views
         {
             if (_pixel == null || _font == null) return;
 
-            var vp    = _graphicsDevice.Viewport;
+            var vp = _graphicsDevice.Viewport;
             var lineH = _font.LineSpacing;
 
-            const int hpBarH   = 22;
-            const int xpBarH   = 14;
-            const int rowGap   = 10;
-            const int padX     = 16;
-            const int padY     = 10;
+            const int hpBarH = 22;
+            const int xpBarH = 14;
+            const int rowGap = 10;
+            const int padX = 16;
+            const int padY = 10;
             const int labelGap = 12;
-            const int panelW   = 540;
+            const int panelW = 540;
 
             var floorLabel = $"Эт.{state.CurrentFloorIndex + 1}/{GameConstants.MaxFloor}";
             var xpLabel = state.HeroLevel >= GameConstants.MaxLevel
@@ -66,21 +66,22 @@ namespace Monsters_Around.Views
             var hpRowH = Math.Max(lineH, hpBarH);
             var panelH = padY + xpRowH + rowGap + hpRowH + padY;
 
-            var panelX = (vp.Width  - panelW) / 2;
-            var panelY =  vp.Height - panelH  - 8;
-            var barX   =  panelX + padX + labelW + labelGap;
+            var panelX = (vp.Width - panelW) / 2;
+            var panelY = vp.Height - panelH - 8;
+            var barX = panelX + padX + labelW + labelGap;
 
-            var xpBarY   = panelY + padY + (xpRowH - xpBarH) / 2;
-            var xpLabelY = panelY + padY + (xpRowH - lineH)  / 2;
-            var hpBarY   = panelY + padY + xpRowH + rowGap + (hpRowH - hpBarH) / 2;
-            var hpLabelY = panelY + padY + xpRowH + rowGap + (hpRowH - lineH)  / 2;
+            var xpBarY = panelY + padY + (xpRowH - xpBarH) / 2;
+            var xpLabelY = panelY + padY + (xpRowH - lineH) / 2;
+            var hpBarY = panelY + padY + xpRowH + rowGap + (hpRowH - hpBarH) / 2;
+            var hpLabelY = panelY + padY + xpRowH + rowGap + (hpRowH - lineH) / 2;
 
             var xpNeeded = GameConstants.XpNeeded(state.HeroLevel);
-            var xpRatio  = state.HeroLevel >= GameConstants.MaxLevel ? 1f
+            var xpRatio = state.HeroLevel >= GameConstants.MaxLevel
+                ? 1f
                 : MathHelper.Clamp((float)state.HeroXp / xpNeeded, 0f, 1f);
-            var hpRatio  = MathHelper.Clamp((float)state.HeroHealth / state.EffectiveMaxHealth, 0f, 1f);
-            var xpFillW  = (int)(barW * xpRatio);
-            var hpFillW  = (int)(barW * hpRatio);
+            var hpRatio = MathHelper.Clamp((float)state.HeroHealth / state.EffectiveMaxHealth, 0f, 1f);
+            var xpFillW = (int)(barW * xpRatio);
+            var hpFillW = (int)(barW * hpRatio);
 
             var xpBarColor = new Color(80, 180, 255);
 
@@ -97,7 +98,7 @@ namespace Monsters_Around.Views
                 xpLabelColor = xpBarColor;
             }
 
-            var hpFillColor  = hpRatio > 0.5f ? new Color(210, 45, 45)
+            var hpFillColor = hpRatio > 0.5f ? new Color(210, 45, 45)
                 : hpRatio > 0.25f ? new Color(210, 100, 0)
                 : new Color(255, 30, 30);
             var hpLabelColor = hpRatio > 0.35f ? Color.White : new Color(255, 150, 150);
@@ -121,8 +122,8 @@ namespace Monsters_Around.Views
 
             // Номер этажа — справа в строке опыта
             var floorSz = _font.MeasureString(floorLabel);
-            var floorX  = panelX + panelW - padX - (int)floorSz.X;
-            var floorY  = xpLabelY;
+            var floorX = panelX + panelW - padX - (int)floorSz.X;
+            var floorY = xpLabelY;
             _spriteBatch.DrawString(_font, floorLabel,
                 new Vector2(floorX, floorY) + Vector2.One, Color.Black * 0.45f);
             _spriteBatch.DrawString(_font, floorLabel,
@@ -144,7 +145,8 @@ namespace Monsters_Around.Views
         public void DrawDamageEdges(GameState state)
         {
             if (_pixel == null) return;
-            var intensity = Math.Max(state.EdgeFlashStrength, state.HeroHealth < 30 ? GameConstants.EdgeCriticalStrength : 0f);
+            var intensity = Math.Max(state.EdgeFlashStrength,
+                state.HeroHealth < 30 ? GameConstants.EdgeCriticalStrength : 0f);
             if (intensity <= 0.001f) return;
 
             var vp = _graphicsDevice.Viewport;
@@ -182,7 +184,8 @@ namespace Monsters_Around.Views
             if (state.HeroOverHeadHpBarTimer <= 0f || state.HeroHealth <= 0) return;
 
             var ratio = MathHelper.Clamp((float)state.HeroHealth / GameConstants.HeroMaxHealth, 0f, 1f);
-            var alpha = MathHelper.Clamp(state.HeroOverHeadHpBarTimer / GameConstants.HeroOverHeadHpBarDurationSeconds, 0f, 1f);
+            var alpha = MathHelper.Clamp(state.HeroOverHeadHpBarTimer / GameConstants.HeroOverHeadHpBarDurationSeconds,
+                0f, 1f);
             const int barH = 4;
             var tileSize = map.TileSize;
             var fillW = (int)(tileSize * ratio);
@@ -199,16 +202,16 @@ namespace Monsters_Around.Views
         {
             if (heartTex == null || _font == null || _pixel == null) return;
 
-            const int   spriteScale = 3;                 // 16×16 → 48×48 на экране
-            const int   spriteSize  = 16 * spriteScale;
-            const int   padX        = 18;
-            const int   padY        = 14;
-            const int   innerPad    = 14;
-            const float textScale   = 1.5f;
-            const float hintScale   = 0.90f;
+            const int spriteScale = 3; // 16×16 → 48×48 на экране
+            const int spriteSize = 16 * spriteScale;
+            const int padX = 18;
+            const int padY = 14;
+            const int innerPad = 14;
+            const float textScale = 1.5f;
+            const float hintScale = 0.90f;
 
-            var countText  = $"x {state.HeroHearts}";
-            var rawTextSz  = _font.MeasureString(countText);
+            var countText = $"x {state.HeroHearts}";
+            var rawTextSz = _font.MeasureString(countText);
             var scaledTextW = (int)(rawTextSz.X * textScale);
             var scaledTextH = (int)(rawTextSz.Y * textScale);
 
@@ -216,7 +219,7 @@ namespace Monsters_Around.Views
             var totalH = Math.Max(spriteSize, scaledTextH) + innerPad * 2;
 
             var vp = _graphicsDevice.Viewport;
-            var panelX = vp.Width  - totalW - padX;
+            var panelX = vp.Width - totalW - padX;
             var panelY = vp.Height - totalH - padY;
 
             _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
@@ -246,8 +249,8 @@ namespace Monsters_Around.Views
                 0f, Vector2.Zero, new Vector2(textScale), SpriteEffects.None, 0f);
 
             // Подсказка «E – использовать» над плашкой
-            const string hint   = "E - использовать";
-            var hintSz  = _font.MeasureString(hint) * hintScale;
+            const string hint = "E - использовать";
+            var hintSz = _font.MeasureString(hint) * hintScale;
             var hintPos = new Vector2(panelX + (totalW - hintSz.X) * 0.5f, panelY - hintSz.Y - 5);
             _spriteBatch.DrawString(_font, hint, hintPos,
                 new Color(160, 160, 180) * 0.70f,

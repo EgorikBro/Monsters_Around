@@ -111,7 +111,8 @@ namespace Monsters_Around
             {
                 spriteBatch.Draw(
                     _texture,
-                    new Rectangle((int)(_worldPosition.X + drawOffset.X), (int)(_worldPosition.Y + drawOffset.Y), _map.TileSize, _map.TileSize),
+                    new Rectangle((int)(_worldPosition.X + drawOffset.X), (int)(_worldPosition.Y + drawOffset.Y),
+                        _map.TileSize, _map.TileSize),
                     Color.White
                 );
             }

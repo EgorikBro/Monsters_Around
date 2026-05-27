@@ -3,7 +3,11 @@ using System.Collections.Generic;
 
 namespace Monsters_Around.Models
 {
-    public enum PauseScreen { Main, Controls }
+    public enum PauseScreen
+    {
+        Main,
+        Controls
+    }
 
     public class GameState
     {
@@ -13,26 +17,26 @@ namespace Monsters_Around.Models
         public int HeroLevel = 1;
         public int HeroXp = 0;
 
-        public int   HeroDamageBonus      = 0;
-        public int   HeroMaxHealthBonus   = 0;
-        public float HeroCritChanceBonus  = 0f;
+        public int HeroDamageBonus = 0;
+        public int HeroMaxHealthBonus = 0;
+        public float HeroCritChanceBonus = 0f;
 
         public int EffectiveMaxHealth => GameConstants.HeroMaxHealth + HeroMaxHealthBonus;
 
-        public bool PendingLevelUp        = false;  // XP накоплен, улучшение ещё не выбрано
+        public bool PendingLevelUp = false; // XP накоплен, улучшение ещё не выбрано
         public bool IsCharacterScreenOpen = false;
-        public bool ShowLevelUpOverlay    = false;
-        public int  LevelUpSelectedIndex  = 0;
+        public bool ShowLevelUpOverlay = false;
+        public int LevelUpSelectedIndex = 0;
 
         public float LevelUpEdgeFlashStrength = 0f;
-        public float LevelUpBlinkAccumulator  = 0f;
+        public float LevelUpBlinkAccumulator = 0f;
 
         public int CurrentFloorIndex;
         public bool StairTransitionLock;
 
         public bool IsGameOver;
         public bool IsVictory;
-        public int  VictorySelectedIndex;
+        public int VictorySelectedIndex;
         public bool IsPaused;
         public PauseScreen PauseScreenState = PauseScreen.Main;
         public int PauseKeyboardIndex;
@@ -62,8 +66,10 @@ namespace Monsters_Around.Models
         // Статистика за текущую игру (для экрана победы)
         /// <summary>Количество убитых врагов по типу (индекс = (int)EnemyType).</summary>
         public int[] KillsByType { get; } = new int[5];
+
         /// <summary>Суммарный полученный опыт.</summary>
         public int TotalXpGained;
+
         public int TotalKills => KillsByType[0] + KillsByType[1] + KillsByType[2] + KillsByType[3] + KillsByType[4];
 
         public int HeroHearts;

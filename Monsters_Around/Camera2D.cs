@@ -16,7 +16,7 @@ namespace Monsters_Around
         public Matrix GetViewMatrix()
         {
             return Matrix.CreateTranslation(new Vector3(-_position, 0f))
-                * Matrix.CreateScale(_zoom, _zoom, 1f);
+                   * Matrix.CreateScale(_zoom, _zoom, 1f);
         }
 
         public void Follow(Vector2 targetWorldPosition, Viewport viewport, Point worldSize)

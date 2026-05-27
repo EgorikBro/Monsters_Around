@@ -62,6 +62,7 @@ namespace Monsters_Around.Models
                 color = item.Color;
                 return true;
             }
+
             text = null;
             color = default;
             return false;

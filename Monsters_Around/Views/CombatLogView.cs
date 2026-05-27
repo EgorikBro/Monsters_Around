@@ -31,12 +31,14 @@ namespace Monsters_Around.Views
                     var e = log.Entries[i];
                     if (e.IsExiting) continue;
                     e.TargetY -= GameConstants.CombatLogLineHeight;
-                    if (e.TargetY < baseY - (GameConstants.CombatLogVisibleCount - 1) * GameConstants.CombatLogLineHeight - 0.5f)
+                    if (e.TargetY < baseY -
+                        (GameConstants.CombatLogVisibleCount - 1) * GameConstants.CombatLogLineHeight - 0.5f)
                     {
                         e.IsExiting = true;
                         e.TargetY = baseY - GameConstants.CombatLogVisibleCount * GameConstants.CombatLogLineHeight;
                     }
                 }
+
                 log.Entries.Add(new CombatLogEntry
                 {
                     Text = text, Color = color,
@@ -61,18 +63,28 @@ namespace Monsters_Around.Views
             }
         }
 
-        public void UpdateScrollInput(MouseState mouse, MouseState prevMouse, int lastScrollWheel, CombatLog log, out int newScrollWheel)
+        public void UpdateScrollInput(MouseState mouse, MouseState prevMouse, int lastScrollWheel, CombatLog log,
+            out int newScrollWheel)
         {
             newScrollWheel = mouse.ScrollWheelValue;
-            if (!log.IsExpanded) { log.ScrollbarDragging = false; return; }
+            if (!log.IsExpanded)
+            {
+                log.ScrollbarDragging = false;
+                return;
+            }
 
             var wheelDelta = mouse.ScrollWheelValue - lastScrollWheel;
-            if (wheelDelta != 0) { log.ScrollOffset -= Math.Sign(wheelDelta); log.ClampScroll(); }
+            if (wheelDelta != 0)
+            {
+                log.ScrollOffset -= Math.Sign(wheelDelta);
+                log.ClampScroll();
+            }
 
             var panel = GetExpandedPanel();
-            var thumb = GetScrollbarThumbRect(panel, log.History.Count, GameConstants.CombatLogExpandedVisibleCount, log.ScrollOffset);
+            var thumb = GetScrollbarThumbRect(panel, log.History.Count, GameConstants.CombatLogExpandedVisibleCount,
+                log.ScrollOffset);
 
-            var leftNow  = mouse.LeftButton == ButtonState.Pressed;
+            var leftNow = mouse.LeftButton == ButtonState.Pressed;
             var leftPrev = prevMouse.LeftButton == ButtonState.Pressed;
 
             if (leftNow && !leftPrev && thumb.Contains(mouse.X, mouse.Y))
@@ -102,7 +114,12 @@ namespace Monsters_Around.Views
         {
             if (_font == null) return;
 
-            if (log.IsExpanded) { DrawExpanded(log); return; }
+            if (log.IsExpanded)
+            {
+                DrawExpanded(log);
+                return;
+            }
+
             if (log.Entries.Count == 0) return;
 
             const float x = 16f;
@@ -116,6 +133,7 @@ namespace Monsters_Around.Views
                 _spriteBatch.DrawString(_font, e.Text, pos, e.Color * e.Alpha,
                     0f, Vector2.Zero, GameConstants.CombatLogTextScale, SpriteEffects.None, 0f);
             }
+
             _spriteBatch.End();
         }
 
@@ -144,7 +162,8 @@ namespace Monsters_Around.Views
             var panel = GetExpandedPanel();
             var contentRect = new Rectangle(panel.X + 8, panel.Y + 8, panel.Width - 30, panel.Height - 16);
             var total = log.History.Count;
-            var start = Math.Clamp(log.ScrollOffset, 0, Math.Max(0, total - GameConstants.CombatLogExpandedVisibleCount));
+            var start = Math.Clamp(log.ScrollOffset, 0,
+                Math.Max(0, total - GameConstants.CombatLogExpandedVisibleCount));
             var end = Math.Min(total, start + GameConstants.CombatLogExpandedVisibleCount);
 
             _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
@@ -168,7 +187,8 @@ namespace Monsters_Around.Views
             _spriteBatch.Draw(_pixel, track, Color.Black * 0.45f);
             if (total > 0)
             {
-                var thumb = GetScrollbarThumbRect(panel, total, GameConstants.CombatLogExpandedVisibleCount, log.ScrollOffset);
+                var thumb = GetScrollbarThumbRect(panel, total, GameConstants.CombatLogExpandedVisibleCount,
+                    log.ScrollOffset);
                 _spriteBatch.Draw(_pixel, thumb, Color.White * 0.55f);
             }
 
@@ -199,7 +219,8 @@ namespace Monsters_Around.Views
             if (total <= 0) return track;
 
             var maxOffset = Math.Max(0, total - visibleCount);
-            var thumbH = Math.Max(14, (int)Math.Round(track.Height * (visibleCount / (float)Math.Max(visibleCount, total))));
+            var thumbH = Math.Max(14,
+                (int)Math.Round(track.Height * (visibleCount / (float)Math.Max(visibleCount, total))));
             if (maxOffset == 0) return new Rectangle(track.X, track.Y, track.Width, thumbH);
 
             var t = scrollOffset / (float)maxOffset;

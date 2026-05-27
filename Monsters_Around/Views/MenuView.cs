@@ -14,18 +14,18 @@ namespace Monsters_Around.Views
         private readonly Texture2D _pixel;
         private readonly GraphicsDevice _graphicsDevice;
 
-        private static readonly Color PanelBg     = new(22, 33, 62);
-        private static readonly Color PanelBorder  = new(233, 69, 96);
-        private static readonly Color BtnIdle      = new(15, 52, 96);
-        private static readonly Color BtnHover     = new(26, 76, 130);
-        private static readonly Color BtnDisabled  = new(40, 45, 60);
-        private static readonly Color TitleColor   = new(238, 238, 238);
-        private static readonly Color Accent       = new(233, 69, 96);
-        private static readonly Color Overlay      = Color.Black * 0.55f;
+        private static readonly Color PanelBg = new(22, 33, 62);
+        private static readonly Color PanelBorder = new(233, 69, 96);
+        private static readonly Color BtnIdle = new(15, 52, 96);
+        private static readonly Color BtnHover = new(26, 76, 130);
+        private static readonly Color BtnDisabled = new(40, 45, 60);
+        private static readonly Color TitleColor = new(238, 238, 238);
+        private static readonly Color Accent = new(233, 69, 96);
+        private static readonly Color Overlay = Color.Black * 0.55f;
 
         private const int BtnW = 320;
         private const int BtnH = 44;
-        private const int Gap  = 10;
+        private const int Gap = 10;
         private const int PanelPad = 28;
 
         public MenuView(SpriteBatch spriteBatch, SpriteFont font, Texture2D pixel, GraphicsDevice graphicsDevice)
@@ -46,6 +46,7 @@ namespace Monsters_Around.Views
                     state.PauseKeyboardIndex = 3;
                     return;
                 }
+
                 ClosePause(state);
                 return;
             }
@@ -74,9 +75,9 @@ namespace Monsters_Around.Views
             const int btnCount = 5;
             var panelH = PanelPad * 2 + 52 + btnCount * BtnH + (btnCount - 1) * Gap;
             var panel = new Rectangle((vp.Width - BtnW - PanelPad * 2) / 2, (vp.Height - panelH) / 2,
-                                      BtnW + PanelPad * 2, panelH);
+                BtnW + PanelPad * 2, panelH);
             var btnLeft = panel.X + PanelPad;
-            var btnTop  = panel.Y + PanelPad + 52;
+            var btnTop = panel.Y + PanelPad + 52;
 
             if (InputHandler.IsKeyPressed(Keys.Down))
                 state.PauseKeyboardIndex = (state.PauseKeyboardIndex + 1) % btnCount;
@@ -95,9 +96,16 @@ namespace Monsters_Around.Views
 
                 switch (i)
                 {
-                    case 0: ClosePause(state); return;
-                    case 3: state.PauseScreenState = PauseScreen.Controls; state.PauseKeyboardIndex = 0; return;
-                    case 4: state.VoluntaryExitRequested = true; return;
+                    case 0:
+                        ClosePause(state);
+                        return;
+                    case 3:
+                        state.PauseScreenState = PauseScreen.Controls;
+                        state.PauseKeyboardIndex = 0;
+                        return;
+                    case 4:
+                        state.VoluntaryExitRequested = true;
+                        return;
                 }
             }
         }
@@ -117,7 +125,10 @@ namespace Monsters_Around.Views
                 else
                     DrawPauseControls(state, mouse, vp);
             }
-            finally { _spriteBatch.End(); }
+            finally
+            {
+                _spriteBatch.End();
+            }
         }
 
         private void DrawPauseMain(GameState state, MouseState mouse, Viewport vp)
@@ -125,28 +136,29 @@ namespace Monsters_Around.Views
             const int btnCount = 5;
             var panelH = PanelPad * 2 + 52 + btnCount * BtnH + (btnCount - 1) * Gap;
             var panel = new Rectangle((vp.Width - BtnW - PanelPad * 2) / 2, (vp.Height - panelH) / 2,
-                                      BtnW + PanelPad * 2, panelH);
+                BtnW + PanelPad * 2, panelH);
             DrawPanelFrame(panel);
             DrawTitle("ПАУЗА", new Vector2(panel.X + PanelPad, panel.Y + PanelPad));
 
             var btnLeft = panel.X + PanelPad;
-            var btnTop  = panel.Y + PanelPad + 52;
-            var labels   = new[] { "Продолжить", "Сохранить", "Загрузить", "Управление", "Выйти из игры" };
+            var btnTop = panel.Y + PanelPad + 52;
+            var labels = new[] { "Продолжить", "Сохранить", "Загрузить", "Управление", "Выйти из игры" };
             var disabled = new[] { false, true, true, false, false };
 
             for (var i = 0; i < labels.Length; i++)
             {
                 var r = new Rectangle(btnLeft, btnTop + i * (BtnH + Gap), BtnW, BtnH);
-                var hover    = !disabled[i] && r.Contains(mouse.X, mouse.Y);
+                var hover = !disabled[i] && r.Contains(mouse.X, mouse.Y);
                 var selected = state.PauseKeyboardIndex == i;
-                var fill     = disabled[i] ? BtnDisabled : (hover || selected ? BtnHover : BtnIdle);
+                var fill = disabled[i] ? BtnDisabled : (hover || selected ? BtnHover : BtnIdle);
                 DrawButton(r, fill, labels[i], disabled[i]);
             }
         }
 
         private void DrawPauseControls(GameState state, MouseState mouse, Viewport vp)
         {
-            ComputeControlsLayout(vp, out var panel, out var backBtn, out var textOrigin, out var body, out var textScale);
+            ComputeControlsLayout(vp, out var panel, out var backBtn, out var textOrigin, out var body,
+                out var textScale);
             DrawPanelFrame(panel);
             DrawTitle("Управление", new Vector2(panel.X + PanelPad, panel.Y + PanelPad));
 
@@ -165,7 +177,7 @@ namespace Monsters_Around.Views
             var vp = _graphicsDevice.Viewport;
             const int panelH = 220;
             var btnLeft = (vp.Width - BtnW) / 2;
-            var btnTop  = (vp.Height - panelH) / 2 + 120;
+            var btnTop = (vp.Height - panelH) / 2 + 120;
 
             var labels = new[] { "Играть снова", "Выход" };
             for (var i = 0; i < labels.Length; i++)
@@ -177,8 +189,12 @@ namespace Monsters_Around.Views
                             prevMouse.LeftButton == ButtonState.Pressed && r.Contains(mouse.X, mouse.Y);
                 if (click || (InputHandler.IsKeyPressed(Keys.Enter) && state.GameOverSelectedIndex == i))
                 {
-                    if (i == 0) { state.IsGameOver = false; }
-                    else        state.VoluntaryExitRequested = true;
+                    if (i == 0)
+                    {
+                        state.IsGameOver = false;
+                    }
+                    else state.VoluntaryExitRequested = true;
+
                     return;
                 }
             }
@@ -206,8 +222,8 @@ namespace Monsters_Around.Views
                 DrawTitle("ИГРА ОКОНЧЕНА", new Vector2(panel.X + 28, panel.Y + 28));
 
                 var btnLeft = panel.X + (panel.Width - BtnW) / 2;
-                var btnTop  = panel.Y + 120;
-                var labels  = new[] { "Играть снова", "Выход" };
+                var btnTop = panel.Y + 120;
+                var labels = new[] { "Играть снова", "Выход" };
                 for (var i = 0; i < labels.Length; i++)
                 {
                     var r = new Rectangle(btnLeft, btnTop + i * (BtnH + Gap), BtnW, BtnH);
@@ -216,7 +232,10 @@ namespace Monsters_Around.Views
                     DrawButton(r, hover || selected ? BtnHover : BtnIdle, labels[i], false);
                 }
             }
-            finally { _spriteBatch.End(); }
+            finally
+            {
+                _spriteBatch.End();
+            }
         }
 
         // ──────────────────────────────── Экран победы ────────────────────────────────
@@ -235,12 +254,12 @@ namespace Monsters_Around.Views
                 var r = new Rectangle(btnLeft, btnTop + i * (BtnH + Gap), BtnW, BtnH);
                 if (r.Contains(mouse.X, mouse.Y)) state.VictorySelectedIndex = i;
 
-                var click = mouse.LeftButton  == ButtonState.Released &&
+                var click = mouse.LeftButton == ButtonState.Released &&
                             prevMouse.LeftButton == ButtonState.Pressed && r.Contains(mouse.X, mouse.Y);
                 if (click || (InputHandler.IsKeyPressed(Keys.Enter) && state.VictorySelectedIndex == i))
                 {
                     if (i == 0) state.IsVictory = false;
-                    else        state.VoluntaryExitRequested = true;
+                    else state.VoluntaryExitRequested = true;
                     return;
                 }
             }
@@ -301,8 +320,8 @@ namespace Monsters_Around.Views
                 var killColor = new Color(210, 215, 230);
                 for (var i = 0; i < _killTypeLabels.Length; i++)
                 {
-                    var kx    = i % 2 == 0 ? col1X : col2X;
-                    var ky    = cy + (i / 2) * lh;
+                    var kx = i % 2 == 0 ? col1X : col2X;
+                    var ky = cy + (i / 2) * lh;
                     var kText = $"{_killTypeLabels[i]}: {state.KillsByType[i]}";
                     _spriteBatch.DrawString(_font, kText, new Vector2(kx, ky) + Vector2.One, Color.Black * 0.3f);
                     _spriteBatch.DrawString(_font, kText, new Vector2(kx, ky), killColor);
@@ -312,13 +331,16 @@ namespace Monsters_Around.Views
                 var labels = new[] { "Играть снова", "Выход" };
                 for (var i = 0; i < labels.Length; i++)
                 {
-                    var r        = new Rectangle(btnLeft, btnTop + i * (BtnH + Gap), BtnW, BtnH);
+                    var r = new Rectangle(btnLeft, btnTop + i * (BtnH + Gap), BtnW, BtnH);
                     var selected = state.VictorySelectedIndex == i;
-                    var hover    = r.Contains(mouse.X, mouse.Y);
+                    var hover = r.Contains(mouse.X, mouse.Y);
                     DrawButton(r, hover || selected ? BtnHover : BtnIdle, labels[i], false);
                 }
             }
-            finally { _spriteBatch.End(); }
+            finally
+            {
+                _spriteBatch.End();
+            }
         }
 
         private void DrawVictoryStat(int leftX, int rightEdge, ref int cy, int lh,
@@ -329,7 +351,7 @@ namespace Monsters_Around.Views
             _spriteBatch.DrawString(_font, $"{label}:", new Vector2(leftX, cy) + Vector2.One, Color.Black * 0.3f);
             _spriteBatch.DrawString(_font, $"{label}:", new Vector2(leftX, cy), labelColor);
             var vsz = _font.MeasureString(value);
-            var vx  = rightEdge - (int)vsz.X;
+            var vx = rightEdge - (int)vsz.X;
             _spriteBatch.DrawString(_font, value, new Vector2(vx, cy) + Vector2.One, Color.Black * 0.3f);
             _spriteBatch.DrawString(_font, value, new Vector2(vx, cy), valueColor);
             cy += lh;
@@ -340,25 +362,25 @@ namespace Monsters_Around.Views
         {
             if (_font == null)
             {
-                panel   = new Rectangle(vp.Width / 2 - 200, vp.Height / 2 - 150, 400, 300);
+                panel = new Rectangle(vp.Width / 2 - 200, vp.Height / 2 - 150, 400, 300);
                 btnLeft = panel.X + PanelPad;
-                btnTop  = panel.Bottom - PanelPad - 2 * (BtnH + Gap);
+                btnTop = panel.Bottom - PanelPad - 2 * (BtnH + Gap);
                 return;
             }
 
-            var lh        = _font.LineSpacing + 3;
-            var titleH    = _font.LineSpacing + 18;    // ПОБЕДА!
-            var subH      = _font.LineSpacing + 14;    // подзаголовок
-            const int statRows  = 4;                   // 4 строки статистики
-            const int killRows  = 3;                   // 5 типов в 2 колонки = 3 строки
-            var statsH    = statRows * lh + 6 + killRows * lh;
-            var btnsH     = 2 * BtnH + Gap + 14;      // 2 кнопки + отступ сверху
+            var lh = _font.LineSpacing + 3;
+            var titleH = _font.LineSpacing + 18; // ПОБЕДА!
+            var subH = _font.LineSpacing + 14; // подзаголовок
+            const int statRows = 4; // 4 строки статистики
+            const int killRows = 3; // 5 типов в 2 колонки = 3 строки
+            var statsH = statRows * lh + 6 + killRows * lh;
+            var btnsH = 2 * BtnH + Gap + 14; // 2 кнопки + отступ сверху
             const int panelW = 520;
-            var panelH    = PanelPad + titleH + subH + statsH + btnsH + PanelPad;
+            var panelH = PanelPad + titleH + subH + statsH + btnsH + PanelPad;
 
-            panel   = new Rectangle((vp.Width - panelW) / 2, (vp.Height - panelH) / 2, panelW, panelH);
+            panel = new Rectangle((vp.Width - panelW) / 2, (vp.Height - panelH) / 2, panelW, panelH);
             btnLeft = panel.X + (panelW - BtnW) / 2;
-            btnTop  = panel.Bottom - PanelPad - 2 * BtnH - Gap;
+            btnTop = panel.Bottom - PanelPad - 2 * BtnH - Gap;
         }
 
         // ──────────────────────────────────────────────────────────────────────────────
@@ -384,7 +406,8 @@ namespace Monsters_Around.Views
             _spriteBatch.DrawString(_font, title, pos + Vector2.One * 2, Color.Black * 0.45f);
             _spriteBatch.DrawString(_font, title, pos, TitleColor);
             var w = _font.MeasureString(title).X;
-            _spriteBatch.Draw(_pixel, new Rectangle((int)pos.X, (int)(pos.Y + _font.LineSpacing + 6), (int)w, 3), Accent);
+            _spriteBatch.Draw(_pixel, new Rectangle((int)pos.X, (int)(pos.Y + _font.LineSpacing + 6), (int)w, 3),
+                Accent);
         }
 
         private void DrawButton(Rectangle rect, Color fill, string text, bool disabled)
@@ -395,8 +418,8 @@ namespace Monsters_Around.Views
                 Color.Black * 0.25f);
 
             var label = disabled ? $"{text}  (скоро)" : text;
-            var size  = _font.MeasureString(label);
-            var pos   = new Vector2(rect.X + (rect.Width - size.X) * 0.5f, rect.Y + (rect.Height - size.Y) * 0.5f);
+            var size = _font.MeasureString(label);
+            var pos = new Vector2(rect.X + (rect.Width - size.X) * 0.5f, rect.Y + (rect.Height - size.Y) * 0.5f);
             var color = disabled ? new Color(140, 145, 160) : Color.White;
             _spriteBatch.DrawString(_font, label, pos + Vector2.One, Color.Black * 0.5f);
             _spriteBatch.DrawString(_font, label, pos, color);
@@ -416,16 +439,16 @@ namespace Monsters_Around.Views
             wrappedBody = WrapText(GetControlsHelpText(), innerW);
             var sz = _font.MeasureString(wrappedBody);
 
-            var reservedTop    = PanelPad + contentTopOffset;
+            var reservedTop = PanelPad + contentTopOffset;
             var reservedBottom = Gap + BtnH + PanelPad;
-            var maxPanelH  = Math.Max(BtnH + reservedTop + 8, vp.Height - marginV);
-            var maxTextH   = Math.Max(24, maxPanelH - reservedTop - reservedBottom);
+            var maxPanelH = Math.Max(BtnH + reservedTop + 8, vp.Height - marginV);
+            var maxTextH = Math.Max(24, maxPanelH - reservedTop - reservedBottom);
 
             textScale = sz.Y <= 0 ? 1f : Math.Min(1f, maxTextH / sz.Y);
             var scaledTextH = (int)Math.Ceiling(sz.Y * textScale);
             if (scaledTextH > maxTextH && sz.Y > 0)
             {
-                textScale   = maxTextH / sz.Y;
+                textScale = maxTextH / sz.Y;
                 scaledTextH = maxTextH;
             }
 
@@ -443,16 +466,24 @@ namespace Monsters_Around.Views
             foreach (var rawLine in text.Split('\n'))
             {
                 var line = rawLine.TrimEnd('\r');
-                if (line.Length == 0) { sb.AppendLine(); continue; }
+                if (line.Length == 0)
+                {
+                    sb.AppendLine();
+                    continue;
+                }
 
                 var indent = line.StartsWith("  ", StringComparison.Ordinal) ? "  " : "";
-                var rest   = indent.Length > 0 ? line.Substring(2).TrimStart() : line.TrimStart();
-                if (rest.Length == 0) { sb.AppendLine(); continue; }
+                var rest = indent.Length > 0 ? line.Substring(2).TrimStart() : line.TrimStart();
+                if (rest.Length == 0)
+                {
+                    sb.AppendLine();
+                    continue;
+                }
 
-                var indentW  = _font.MeasureString(indent).X;
-                var budget   = Math.Max(48f, maxWidth - indentW);
-                var words    = rest.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                var lineSb   = new StringBuilder();
+                var indentW = _font.MeasureString(indent).X;
+                var budget = Math.Max(48f, maxWidth - indentW);
+                var words = rest.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                var lineSb = new StringBuilder();
                 foreach (var word in words)
                 {
                     var candidate = lineSb.Length == 0 ? word : lineSb + " " + word;
@@ -467,8 +498,10 @@ namespace Monsters_Around.Views
                         lineSb.Append(word);
                     }
                 }
+
                 if (lineSb.Length > 0) sb.Append(indent).AppendLine(lineSb.ToString());
             }
+
             return sb.ToString();
         }
 
